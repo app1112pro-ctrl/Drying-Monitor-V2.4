@@ -378,7 +378,7 @@
       <div>
         <div class="weather-card">
           <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-            <span>สภาพอากาศภายนอก</span>
+            <span>สภาพอากาศในพื้นที่</span>
             <a href="https://www.tmd.go.th/climate/climate.php?FileID=73" target="_blank"
                style="font-size:10px;color:var(--air);text-decoration:none;border:1px solid var(--border);padding:2px 7px;border-radius:4px">
               กรมอุตุฯ
@@ -830,25 +830,57 @@ function updateCompare() {
 //  REALTIME CHART
 // ════════════════════════════════════════
 let rtChart;
+let rtAllData = { labels:[], air:[], humi:[], prod:[] }; // เก็บข้อมูล 24 ชม.
+
+function buildRtLabels() {
+  // สร้าง labels ทุก 30 นาที 0:00-23:30
+  const labs = [];
+  for (let h=0; h<24; h++) {
+    labs.push(String(h).padStart(2,'0')+':00');
+    labs.push(String(h).padStart(2,'0')+':30');
+  }
+  return labs; // 48 slots
+}
+
+function slotIndex(dateObj) {
+  // คืน index ของ slot 30 นาที (0-47)
+  return dateObj.getHours()*2 + (dateObj.getMinutes()>=30?1:0);
+}
+
 function initRtChart() {
+  const labs = buildRtLabels();
+  // สร้าง array 48 slots เริ่มเป็น null
+  const empty = () => Array(48).fill(null);
+  rtAllData = { labels: labs, air: empty(), humi: empty(), prod: empty() };
+
   const ctx = $('chart-rt').getContext('2d');
   rtChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: [],
+      labels: labs,
       datasets: [
-        { label:'T.อากาศ', data:[], borderColor:'#60a5fa', borderWidth:1.5, pointRadius:0, tension:.3, yAxisID:'y' },
-        { label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5, pointRadius:0, tension:.3, yAxisID:'y' },
-        { label:'T.ผลิตภัณฑ์', data:[], borderColor:'#fbbf24', borderWidth:1.5, pointRadius:0, tension:.3, yAxisID:'y' },
+        { label:'T.อากาศ',      data: [...rtAllData.air],  borderColor:'#60a5fa', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
+        { label:'ความชื้น',      data: [...rtAllData.humi], borderColor:'#34d399', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
+        { label:'T.ผลิตภัณฑ์', data: [...rtAllData.prod], borderColor:'#fbbf24', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
       ]
     },
     options: {
-      responsive:true, animation:false,
-      spanGaps: true,
+      responsive:true, animation:false, spanGaps:true,
       plugins:{ legend:{ labels:{ color:'#5a7090', font:{size:10} } } },
       scales:{
-        x:{ ticks:{ color:'#5a7090', font:{size:9}, maxTicksLimit:8 }, grid:{ color:'#1e2d45' } },
-        y:{ min:20, max:100, ticks:{ color:'#5a7090', font:{size:9} }, grid:{ color:'#1e2d45' } }
+        x:{
+          ticks:{
+            color:'#5a7090', font:{size:9},
+            maxTicksLimit:25,
+            callback: function(val,idx){ return idx%2===0 ? this.getLabelForValue(val) : ''; }
+          },
+          grid:{ color:'#1e2d45' }
+        },
+        y:{
+          min:0, max:100,
+          ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 },
+          grid:{ color:'#1e2d45' }
+        }
       }
     }
   });
@@ -856,30 +888,21 @@ function initRtChart() {
 
 function pushRtChart(d) {
   if (!rtChart) return;
-  const t = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const toNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const air  = toNum(d.temp_air);
   const humi = toNum(d.humidity);
   const prod = toNum(d.temp_product);
-  if (air === null && humi === null && prod === null) return; // skip empty packet
-  rtChart.data.labels.push(t);
-  rtChart.data.datasets[0].data.push(air);
-  rtChart.data.datasets[1].data.push(humi);
-  rtChart.data.datasets[2].data.push(prod);
-  if (rtChart.data.labels.length > 60) {
-    rtChart.data.labels.shift();
-    rtChart.data.datasets.forEach(ds => ds.data.shift());
-  }
-  // auto-scale Y dynamically
-  const allVals = [air, humi, prod].filter(v => v !== null);
-  if (allVals.length) {
-    const allData = rtChart.data.datasets.flatMap(ds => ds.data).filter(v => v !== null);
-    const mn = Math.floor(Math.min(...allData) - 5);
-    const mx = Math.ceil(Math.max(...allData) + 5);
-    rtChart.options.scales.y.min = Math.max(0, mn);
-    rtChart.options.scales.y.max = mx;
-  }
-  rtChart.update('none'); // 'none' = no animation, faster
+  if (air === null && humi === null && prod === null) return;
+  const now = new Date();
+  const slot = slotIndex(now);
+  // อัปเดต slot ของเวลาปัจจุบัน
+  if (air  !== null) rtAllData.air[slot]  = air;
+  if (humi !== null) rtAllData.humi[slot] = humi;
+  if (prod !== null) rtAllData.prod[slot] = prod;
+  rtChart.data.datasets[0].data = [...rtAllData.air];
+  rtChart.data.datasets[1].data = [...rtAllData.humi];
+  rtChart.data.datasets[2].data = [...rtAllData.prod];
+  rtChart.update('none');
 }
 
 // ════════════════════════════════════════
@@ -889,13 +912,27 @@ let histTempChart, histHumiChart;
 function initHistCharts() {
   const opts = (label, color) => ({
     type: 'line',
-    data: { labels:[], datasets:[{ label, data:[], borderColor:color, borderWidth:1.5, pointRadius:0, tension:.3, fill:true, backgroundColor:color+'18' }] },
+    data: { labels:[], datasets:[{ label, data:[], borderColor:color, borderWidth:1.5, pointRadius:0, tension:.3, fill:true, backgroundColor:color+'18', spanGaps:true }] },
     options: {
       responsive:true, animation:false,
       plugins:{ legend:{ display:false } },
       scales:{
-        x:{ ticks:{ color:'#5a7090', font:{size:9}, maxTicksLimit:10 }, grid:{ color:'#1e2d45' } },
-        y:{ ticks:{ color:'#5a7090', font:{size:9} }, grid:{ color:'#1e2d45' } }
+        x:{
+          ticks:{
+            color:'#5a7090', font:{size:8}, maxRotation:45,
+            callback: function(val,idx,ticks) {
+              // แสดงทุก N label ตามความหนาแน่น
+              const step = Math.max(1, Math.floor(ticks.length/12));
+              return idx%step===0 ? this.getLabelForValue(val) : '';
+            }
+          },
+          grid:{ color:'#1e2d45' }
+        },
+        y:{
+          min:0, max:100,
+          ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 },
+          grid:{ color:'#1e2d45' }
+        }
       }
     }
   });
@@ -961,12 +998,47 @@ function parseAndRenderHistory(csv) {
 }
 
 function renderHistCharts(rows) {
-  const labels = rows.map(r => r.ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}));
+  // เลือก format label ตามช่วงเวลา
+  const rangeH = histRange;
+  const fmtLabel = (ts) => {
+    if (rangeH <= 24) {
+      // 24 ชม. → แสดงเฉพาะ HH:MM เริ่มจาก 00:00
+      return ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    } else {
+      // 3วัน+ → แสดง ว/ด HH:MM
+      return ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+             + ' ' + ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    }
+  };
+  // 24 ชม. — group เป็นรายชั่วโมง เอา avg ของแต่ละชั่วโมง
+  let labels, airData, humiData;
+  if (rangeH <= 24) {
+    // สร้าง bucket 24 ชั่วโมง 00:00-23:00
+    const buckets = {};
+    for (let h=0; h<24; h++) buckets[String(h).padStart(2,'0')+':00'] = {air:[],humi:[]};
+    rows.forEach(r => {
+      const key = r.ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}).slice(0,5);
+      const hkey = key.slice(0,2)+':00';
+      if (buckets[hkey]) {
+        if (r.air  !== null && !isNaN(r.air))  buckets[hkey].air.push(r.air);
+        if (r.humi !== null && !isNaN(r.humi)) buckets[hkey].humi.push(r.humi);
+      }
+    });
+    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+    labels   = Object.keys(buckets);
+    airData  = labels.map(k => avg(buckets[k].air)  !== null ? +avg(buckets[k].air).toFixed(1)  : null);
+    humiData = labels.map(k => avg(buckets[k].humi) !== null ? +avg(buckets[k].humi).toFixed(1) : null);
+  } else {
+    // 3วัน+ — แสดงทุก row ตามปกติ
+    labels   = rows.map(r => fmtLabel(r.ts));
+    airData  = rows.map(r => r.air);
+    humiData = rows.map(r => r.humi);
+  }
   histTempChart.data.labels = labels;
-  histTempChart.data.datasets[0].data = rows.map(r => r.air);
+  histTempChart.data.datasets[0].data = airData;
   histTempChart.update();
   histHumiChart.data.labels = labels;
-  histHumiChart.data.datasets[0].data = rows.map(r => r.humi);
+  histHumiChart.data.datasets[0].data = humiData;
   histHumiChart.update();
 }
 
@@ -1014,6 +1086,61 @@ function loadDemoHistory() {
 // ════════════════════════════════════════
 //  WEATHER — fetch from Sheets CSV
 // ════════════════════════════════════════
+
+async function fetchWeatherDirect() {
+  try {
+    const LAT = 12.510719532073317;
+    const LON = 102.14703938773218;
+    const url = "https://api.open-meteo.com/v1/forecast"
+      + "?latitude=" + LAT + "&longitude=" + LON
+      + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,weather_code"
+      + "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max"
+      + "&forecast_days=1"
+      + "&timezone=Asia%2FBangkok";
+    const res  = await fetch(url);
+    const json = await res.json();
+    const cur  = json.current;
+    const wDesc = getWeatherDesc(cur.weather_code);
+    weatherState = {
+      temp:        cur.temperature_2m.toFixed(1),
+      humi:        Math.round(cur.relative_humidity_2m),
+      feelsLike:   cur.apparent_temperature.toFixed(1),
+      wind:        cur.wind_speed_10m.toFixed(1),
+      windDir:     windDirLabel(cur.wind_direction_10m),
+      rain:        cur.precipitation.toFixed(1),
+      cloud:       cur.cloud_cover,
+      desc:        wDesc,
+      time:        cur.time.replace("T"," ").slice(0,16),
+      lat:         LAT,
+      lon:         LON,
+    };
+    updateWeatherUI();
+    logMqtt("[Weather] พื้นที่ 12.51N,102.15E: " + weatherState.temp + "C " + weatherState.humi + "% " + wDesc, "#22d3ee");
+  } catch(e) {
+    logMqtt("[Weather] Error: " + e.message, "#f87171");
+    // retry หลัง 10 วินาที
+    setTimeout(fetchWeatherDirect, 10000);
+  }
+}
+
+function windDirLabel(deg) {
+  const dirs = ["เหนือ","ตต.เหนือ","ตะวันออกเฉียงเหนือ","ตอ.เหนือ","ตะวันออก","ตอ.ใต้","ตะวันออกเฉียงใต้","ตต.ใต้","ใต้","ตต.ใต้","ตะวันตกเฉียงใต้","ตต.ใต้","ตะวันตก","ตต.เหนือ","ตะวันตกเฉียงเหนือ","ตต.เหนือ"];
+  return dirs[Math.round(deg/22.5) % 16];
+}
+
+function getWeatherDesc(code) {
+  if (code === 0) return "ท้องฟ้าแจ่มใส";
+  if (code <= 2)  return "มีเมฆบางส่วน";
+  if (code === 3) return "มีเมฆมาก";
+  if (code <= 49) return "หมอก";
+  if (code <= 59) return "ฝนปรอย";
+  if (code <= 69) return "ฝนตก";
+  if (code <= 79) return "หิมะ";
+  if (code <= 84) return "ฝนห่าใหญ่";
+  if (code <= 99) return "พายุฝนฟ้าคะนอง";
+  return "ไม่ทราบ";
+}
+
 async function fetchWeather() {
   if (true) { // ดึงจาก Open-Meteo โดยตรงเสมอ — แม่นยำและไม่มี CORS
     await fetchWeatherDirect();
@@ -1044,58 +1171,6 @@ async function fetchWeather() {
 // ════════════════════════════════════════
 //  MQTT
 // ════════════════════════════════════════
-
-async function fetchWeatherDirect() {
-  try {
-    const LAT = 12.510719532073317;
-    const LON = 102.14703938773218;
-    const url = "https://api.open-meteo.com/v1/forecast"
-      + "?latitude=" + LAT + "&longitude=" + LON
-      + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,weather_code"
-      + "&hourly=temperature_2m,relative_humidity_2m"
-      + "&forecast_days=1"
-      + "&timezone=Asia%2FBangkok";
-    const res  = await fetch(url);
-    const json = await res.json();
-    const cur  = json.current;
-    const wDesc = getWeatherDesc(cur.weather_code);
-    weatherState = {
-      temp:        cur.temperature_2m.toFixed(1),
-      humi:        Math.round(cur.relative_humidity_2m),
-      feelsLike:   cur.apparent_temperature.toFixed(1),
-      wind:        cur.wind_speed_10m.toFixed(1),
-      windDir:     windDirLabel(cur.wind_direction_10m),
-      rain:        cur.precipitation.toFixed(1),
-      cloud:       cur.cloud_cover,
-      desc:        wDesc,
-      time:        cur.time.replace("T"," ").slice(0,16),
-      lat:         LAT,
-      lon:         LON,
-    };
-    updateWeatherUI();
-    logMqtt("[Weather] Open-Meteo OK: " + weatherState.temp + "C " + weatherState.humi + "% " + wDesc, "#22d3ee");
-  } catch(e) {
-    logMqtt("[Weather] Error: " + e.message, "#f87171");
-  }
-}
-
-function windDirLabel(deg) {
-  const dirs = ["เหนือ","ตต.เหนือ","ตะวันออกเฉียงเหนือ","ตอ.เหนือ","ตะวันออก","ตอ.ใต้","ตะวันออกเฉียงใต้","ตต.ใต้","ใต้","ตต.ใต้","ตะวันตกเฉียงใต้","ตต.ใต้","ตะวันตก","ตต.เหนือ","ตะวันตกเฉียงเหนือ","ตต.เหนือ"];
-  return dirs[Math.round(deg/22.5) % 16];
-}
-
-function getWeatherDesc(code) {
-  if (code === 0) return "ท้องฟ้าแจ่มใส";
-  if (code <= 2)  return "มีเมฆบางส่วน";
-  if (code === 3) return "มีเมฆมาก";
-  if (code <= 49) return "หมอก";
-  if (code <= 59) return "ฝนปรอย";
-  if (code <= 69) return "ฝนตก";
-  if (code <= 79) return "หิมะ";
-  if (code <= 84) return "ฝนห่าใหญ่";
-  if (code <= 99) return "พายุฝนฟ้าคะนอง";
-  return "ไม่ทราบ";
-}
 
 function connectMQTT() {
   const url = `wss://${CFG.mqttHost}:${CFG.mqttPort}/mqtt`;
