@@ -50,6 +50,19 @@
     background:var(--bg3); cursor:pointer; position:relative; transition:background .25s;
     flex-shrink:0; outline:none;
   }
+  body.font-sm  { font-size:12px; }
+  body.font-md  { font-size:14px; }
+  body.font-lg  { font-size:17px; }
+  .font-btn {
+    display:flex; align-items:center; gap:2px;
+  }
+  .font-btn button {
+    background:var(--bg3); border:1px solid var(--border); border-radius:5px;
+    color:var(--muted); cursor:pointer; font-family:var(--font);
+    padding:2px 7px; font-size:11px; transition:all .15s; line-height:1.4;
+  }
+  .font-btn button:hover  { color:var(--text); border-color:var(--air); }
+  .font-btn button.active { color:var(--air);  border-color:var(--air); background:var(--bg2); }
   .theme-toggle::after {
     content:''; position:absolute; top:3px; left:3px;
     width:14px; height:14px; border-radius:50%;
@@ -168,7 +181,7 @@
   .weather-compare { margin-top: 12px; }
   .cmp-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
   .cmp-row:last-child { border-bottom: none; }
-  .cmp-label { color: var(--muted); width: 90px; flex-shrink: 0; }
+  .cmp-label { color: var(--muted); width: 200px; flex-shrink: 0; font-size:11px; }
   .cmp-bar-wrap { flex: 1; display: flex; gap: 4px; align-items: center; }
   .cmp-bar { height: 5px; border-radius: 3px; }
   .cmp-val { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 40px; text-align: right; }
@@ -250,6 +263,14 @@
     .status-row { grid-template-columns: 1fr 1fr; }
     .chart-row { grid-template-columns: 1fr; }
   }
+
+  .lang-btn {
+    background:var(--bg3); border:1px solid var(--border); border-radius:5px;
+    color:var(--muted); cursor:pointer; font-family:var(--font);
+    padding:3px 9px; font-size:11.5px; font-weight:500; transition:all .15s;
+  }
+  .lang-btn:hover  { color:var(--text); border-color:var(--air); }
+  .lang-btn.active { color:var(--air);  border-color:var(--air); background:var(--bg2); }
 </style>
 </head>
 <body>
@@ -266,16 +287,27 @@
         <div class="header-sub" style="margin-top:2px">v2.4.1 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <!-- Font size -->
+      <div class="font-btn">
+        <button id="fs-sm" onclick="setFont('sm')" title="ตัวอักษรเล็ก">A-</button>
+        <button id="fs-md" onclick="setFont('md')" class="active" title="ตัวอักษรปกติ">A</button>
+        <button id="fs-lg" onclick="setFont('lg')" title="ตัวอักษรใหญ่">A+</button>
+      </div>
+      <!-- Language toggle -->
+      <div style="display:flex;gap:3px">
+        <button class="lang-btn active" id="lang-th" onclick="setLang('th')">ไทย</button>
+        <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+      </div>
       <!-- Dark/Light toggle -->
-      <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:12px;color:var(--muted)">☀</span>
         <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="เปลี่ยนธีม"></button>
         <span style="font-size:12px;color:var(--muted)">☾</span>
       </div>
       <div class="conn-pill">
         <div class="conn-dot" id="conn-dot"></div>
-        <span id="conn-label">กำลังเชื่อมต่อ...</span>
+        <span id="conn-label" data-th="กำลังเชื่อมต่อ..." data-en="Connecting...">กำลังเชื่อมต่อ...</span>
       </div>
       <div style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="clock">--:--:--</div>
     </div>
@@ -283,9 +315,9 @@
 
   <!-- ── Tabs ── -->
   <div class="tabs">
-    <div class="tab active" onclick="showPage('realtime',this)">Realtime</div>
-    <div class="tab" onclick="showPage('control',this)">ควบคุม</div>
-    <div class="tab" onclick="showPage('history',this)">ข้อมูลสะสม</div>
+    <div class="tab active" onclick="showPage('realtime',this)" data-th="Realtime" data-en="Realtime">Realtime</div>
+    <div class="tab" onclick="showPage('control',this)" data-th="ควบคุม (Control)" data-en="Control">ควบคุม (Control)</div>
+    <div class="tab" onclick="showPage('history',this)" data-th="ข้อมูลสะสม (History)" data-en="History">ข้อมูลสะสม (History)</div>
   </div>
 
   <!-- ══════════ PAGE: REALTIME ══════════ -->
@@ -295,19 +327,19 @@
         <!-- Sensors -->
         <div class="metric-grid">
           <div class="metric-card">
-            <div class="metric-label">อุณหภูมิอากาศ</div>
+            <div class="metric-label" data-i18n="v-air-label">อุณหภูมิอากาศ</div>
             <div class="metric-val" id="v-air" style="color:var(--air)">--.-</div>
             <div class="metric-unit">°C</div>
             <div class="metric-delta" id="d-air"></div>
           </div>
           <div class="metric-card">
-            <div class="metric-label">ความชื้น</div>
+            <div class="metric-label" data-i18n="v-humi-label">ความชื้น</div>
             <div class="metric-val" id="v-humi" style="color:var(--humi)">--.-</div>
             <div class="metric-unit">%RH</div>
             <div class="metric-delta" id="d-humi"></div>
           </div>
           <div class="metric-card">
-            <div class="metric-label">อุณหภูมิผลิตภัณฑ์</div>
+            <div class="metric-label" data-i18n="v-prod-label">อุณหภูมิผลิตภัณฑ์</div>
             <div class="metric-val" id="v-prod" style="color:var(--prod)">--.-</div>
             <div class="metric-unit">°C</div>
             <div class="metric-delta" id="d-prod"></div>
@@ -317,19 +349,19 @@
         <!-- Status -->
         <div class="status-row">
           <div class="status-card">
-            <div class="status-label">สถานะพัดลม</div>
+            <div class="status-label" data-i18n="v-fan-label">สถานะพัดลม</div>
             <div class="status-val" id="v-fan" style="color:var(--muted)">--</div>
           </div>
           <div class="status-card">
-            <div class="status-label">โปรแกรม</div>
+            <div class="status-label" data-i18n="v-prog-label">โปรแกรม</div>
             <div class="status-val" id="v-prog" style="color:var(--prod)">--</div>
           </div>
           <div class="status-card">
-            <div class="status-label">โหมดระบบ</div>
+            <div class="status-label" data-i18n="v-state-label">โหมดระบบ</div>
             <div class="status-val" id="v-state" style="color:var(--muted)">--</div>
           </div>
           <div class="status-card">
-            <div class="status-label">พัดลม/วันนี้</div>
+            <div class="status-label" data-i18n="v-fanmin-label">พัดลม/วันนี้</div>
             <div class="status-val" id="v-fanmin" style="color:var(--night)">-- นาที</div>
           </div>
         </div>
@@ -369,7 +401,7 @@
 
         <!-- MQTT Log -->
         <div style="margin-top:10px">
-          <div class="card-title" style="margin-bottom:6px">MQTT Log</div>
+          <div class="card-title" style="margin-bottom:6px" data-i18n="mqtt-log-title">MQTT Log</div>
           <div class="mqtt-log" id="mqtt-log">รอการเชื่อมต่อ...</div>
         </div>
       </div>
@@ -378,7 +410,7 @@
       <div>
         <div class="weather-card">
           <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-            <span>สภาพอากาศในพื้นที่</span>
+            <span data-i18n="weather-title">สภาพอากาศในพื้นที่</span>
             <a href="https://www.tmd.go.th/climate/climate.php?FileID=73" target="_blank"
                style="font-size:10px;color:var(--air);text-decoration:none;border:1px solid var(--border);padding:2px 7px;border-radius:4px">
               กรมอุตุฯ
@@ -388,11 +420,11 @@
           <div style="font-size:10px;color:var(--muted);margin-bottom:2px" id="w-desc">--</div>
           <div class="weather-big" id="w-temp">--°</div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:10px" id="w-updated">อัปเดต: --</div>
-          <div class="weather-row"><span>ความชื้นสัมพัทธ์</span><b id="w-humi">--%</b></div>
-          <div class="weather-row"><span>รู้สึกเหมือน</span><b id="w-feels">--°C</b></div>
-          <div class="weather-row"><span>ลม</span><b id="w-wind">-- km/h</b></div>
-          <div class="weather-row"><span>ฝน (ชม.นี้)</span><b id="w-rain">-- mm</b></div>
-          <div class="weather-row"><span>เมฆปกคลุม</span><b id="w-cloud">--%</b></div>
+          <div class="weather-row"><span data-i18n="weather-humi">ความชื้นสัมพัทธ์</span><b id="w-humi">--%</b></div>
+          <div class="weather-row"><span data-i18n="weather-feels">รู้สึกเหมือน</span><b id="w-feels">--°C</b></div>
+          <div class="weather-row"><span data-i18n="weather-wind">ลม</span><b id="w-wind">-- km/h</b></div>
+          <div class="weather-row"><span data-i18n="weather-rain">ฝน (ชม.นี้)</span><b id="w-rain">-- mm</b></div>
+          <div class="weather-row"><span data-i18n="weather-cloud">เมฆปกคลุม</span><b id="w-cloud">--%</b></div>
           <div class="weather-row" style="margin-top:4px;padding-top:4px">
             <span style="font-size:10px;color:var(--muted)">แหล่งข้อมูล</span>
             <a href="https://open-meteo.com" target="_blank"
@@ -406,9 +438,9 @@
 
           <!-- Compare inside vs outside -->
           <div class="weather-compare">
-            <div class="card-title" style="margin:12px 0 8px">เปรียบเทียบใน vs นอก</div>
+            <div class="card-title" style="margin:12px 0 8px" data-i18n="compare-title">เปรียบเทียบข้อมูล</div>
             <div class="cmp-row">
-              <span class="cmp-label">อุณหภูมิ</span>
+              <span class="cmp-label" data-th="Tโรงอบ VS Tพื้นที่ (°C)" data-en="T.Dryer VS T.Area (°C)">Tโรงอบ VS Tพื้นที่ (°C)</span>
               <div class="cmp-bar-wrap">
                 <div class="cmp-bar" id="cmp-air-bar" style="background:var(--air);width:0%"></div>
                 <div class="cmp-bar" id="cmp-w-bar" style="background:#64748b;width:0%"></div>
@@ -416,7 +448,7 @@
               <span class="cmp-val" id="cmp-temp-val">--</span>
             </div>
             <div class="cmp-row">
-              <span class="cmp-label">ความชื้น</span>
+              <span class="cmp-label" data-th="ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)" data-en="Humidity Dryer VS Area (%RH)">ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)</span>
               <div class="cmp-bar-wrap">
                 <div class="cmp-bar" id="cmp-humi-in" style="background:var(--humi);width:0%"></div>
                 <div class="cmp-bar" id="cmp-humi-out" style="background:#64748b;width:0%"></div>
@@ -444,7 +476,7 @@
       <div>
         <!-- Program selection -->
         <div class="card" style="margin-bottom:14px">
-          <div class="card-title">เลือกโปรแกรมอบแห้ง</div>
+          <div class="card-title" data-i18n="prog-title">เลือกโปรแกรมอบแห้ง</div>
           <div class="prog-grid">
             <div class="prog-btn" id="prog-FRUIT" onclick="setProgram('FRUIT')">
               <div class="prog-name">ผลไม้ <span class="prog-badge" style="background:#052e16;color:#86efac">FRUIT</span></div>
@@ -481,7 +513,7 @@
 
         <!-- Fan control -->
         <div class="card" style="margin-bottom:14px">
-          <div class="card-title">ควบคุมพัดลม</div>
+          <div class="card-title" data-i18n="fan-title">ควบคุมพัดลม</div>
           <div class="fan-ctrl">
             <button class="ctrl-btn green" onclick="sendCmd('fan_auto')">AUTO (อัตโนมัติ)</button>
             <button class="ctrl-btn red" onclick="sendCmd('fan_on')">ON (บังคับเปิด)</button>
@@ -491,7 +523,7 @@
 
         <!-- Night guard -->
         <div class="card" style="margin-bottom:14px">
-          <div class="card-title">ตั้งเวลา Night Guard</div>
+          <div class="card-title" data-i18n="night-title">ตั้งเวลา Night Guard</div>
           <div class="night-ctrl">
             <div>
               <label>เวลาเริ่ม (HH:MM)</label>
@@ -507,7 +539,7 @@
 
         <!-- Alert actions -->
         <div class="card">
-          <div class="card-title">จัดการการแจ้งเตือน</div>
+          <div class="card-title" data-i18n="alert-title">จัดการการแจ้งเตือน</div>
           <div class="fan-ctrl">
             <button class="ctrl-btn blue" onclick="sendCmd('rain_clear')">ยกเลิก Rain Mode</button>
             <button class="ctrl-btn blue" onclick="sendCmd('fan_stall_ack')">รับทราบ Fan Stall</button>
@@ -541,12 +573,14 @@
   <!-- ══════════ PAGE: HISTORY ══════════ -->
   <div class="page" id="page-history">
     <div class="hist-filter">
-      <span style="font-size:12px;color:var(--muted);align-self:center">ช่วงเวลา:</span>
-      <button class="filter-btn active" onclick="setRange(24,this)">24 ชั่วโมง</button>
-      <button class="filter-btn" onclick="setRange(72,this)">3 วัน</button>
-      <button class="filter-btn" onclick="setRange(168,this)">7 วัน</button>
-      <button class="filter-btn" onclick="setRange(720,this)">30 วัน</button>
-      <button class="filter-btn" onclick="loadHistory()">รีเฟรช</button>
+      <span style="font-size:12px;color:var(--muted);align-self:center" data-i18n="hist-range-lbl">ช่วงเวลา:</span>
+      <button class="filter-btn active" onclick="setRange(24,this)" data-i18n="hist-24h">24 ชั่วโมง</button>
+      <button class="filter-btn" onclick="setRange(72,this)" data-i18n="hist-3d">3 วัน</button>
+      <button class="filter-btn" onclick="setRange(168,this)" data-i18n="hist-7d">7 วัน</button>
+      <button class="filter-btn" onclick="setRange(720,this)" data-i18n="hist-30d">30 วัน</button>
+      <button class="filter-btn" onclick="setRange(4380,this)" data-i18n="hist-6m">6 เดือน</button>
+      <button class="filter-btn" onclick="setRange(8760,this)" data-i18n="hist-12m">12 เดือน</button>
+      <button class="filter-btn" onclick="loadHistory()" data-i18n="hist-refresh">รีเฟรช</button>
     </div>
 
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="hist-status">
@@ -555,11 +589,11 @@
 
     <div class="chart-row" style="margin-bottom:14px">
       <div class="hist-chart-wrap">
-        <div class="card-title">อุณหภูมิ (°C)</div>
+        <div class="card-title" data-i18n="chart-temp-title">อุณหภูมิ (°C)</div>
         <canvas id="chart-hist-temp"></canvas>
       </div>
       <div class="hist-chart-wrap">
-        <div class="card-title">ความชื้น (%RH)</div>
+        <div class="card-title" data-i18n="chart-humi-title">ความชื้น (%RH)</div>
         <canvas id="chart-hist-humi"></canvas>
       </div>
     </div>
@@ -585,18 +619,18 @@
 
     <!-- Log table -->
     <div class="card">
-      <div class="card-title">ข้อมูลดิบ (50 แถวล่าสุด)</div>
+      <div class="card-title" data-i18n="raw-title">ข้อมูลดิบ (20 แถวล่าสุด)</div>
       <div style="overflow-x:auto">
         <table class="log-table">
           <thead>
             <tr>
-              <th>เวลา</th>
-              <th>T.อากาศ</th>
-              <th>ความชื้น</th>
-              <th>T.ผลิตภัณฑ์</th>
-              <th>พัดลม</th>
-              <th>โปรแกรม</th>
-              <th>โหมด</th>
+              <th data-i18n="col-time">เวลา</th>
+              <th data-i18n="col-air">T.อากาศ</th>
+              <th data-i18n="col-humi">ความชื้น</th>
+              <th data-i18n="col-prod">T.ผลิตภัณฑ์</th>
+              <th data-i18n="col-fan">พัดลม</th>
+              <th data-i18n="col-prog">โปรแกรม</th>
+              <th data-i18n="col-mode">โหมด</th>
             </tr>
           </thead>
           <tbody id="log-tbody">
@@ -619,6 +653,8 @@ const CFG = {
   mqttUser:   'ASTM50996',
   mqttPass:   'ASTM509964Ds',
   mqttClient: 'WebDash_' + Math.random().toString(36).slice(2,7),
+  // Apps Script Weather Proxy URL (ดูวิธีสร้างด้านล่าง)
+  gasWeatherUrl: 'https://script.google.com/macros/s/AKfycbw6g9gaHBuQ1_QlgG92i2rMHVrgBUEn6-TA7p2xydHVnGE8wLWVix0V_5Zv5YXo7paOnw/exec',
   // Google Sheets CSV export URL (File > Share > Publish to web > CSV)
   sheetsUrl:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=0&single=true&output=csv',
   // Weather sheet URL (WeatherData sheet)
@@ -666,6 +702,201 @@ function logCmd(msg) {
   el.innerHTML = `<span style="color:var(--air)">[${now}] ${msg}</span>\n` + el.innerHTML;
   el.innerHTML = el.innerHTML.split('\n').slice(0,20).join('\n');
 }
+
+
+// ════════════════════════════════════════
+//  i18n — ภาษา
+// ════════════════════════════════════════
+const I18N = {
+  th: {
+    'realtime-tab':     'Realtime',
+    'control-tab':      'ควบคุม (Control)',
+    'history-tab':      'ข้อมูลสะสม (History)',
+    'v-air-label':      'อุณหภูมิอากาศ',
+    'v-humi-label':     'ความชื้น',
+    'v-prod-label':     'อุณหภูมิผลิตภัณฑ์',
+    'v-fan-label':      'สถานะพัดลม',
+    'v-prog-label':     'โปรแกรม',
+    'v-state-label':    'โหมดระบบ',
+    'v-fanmin-label':   'พัดลม/วันนี้',
+    'weather-title':    'สภาพอากาศในพื้นที่',
+    'weather-humi':     'ความชื้นสัมพัทธ์',
+    'weather-feels':    'รู้สึกเหมือน',
+    'weather-wind':     'ลม',
+    'weather-rain':     'ฝน (ชม.นี้)',
+    'weather-cloud':    'เมฆปกคลุม',
+    'weather-src':      'แหล่งข้อมูล',
+    'weather-view':     'ดูข้อมูลพื้นที่',
+    'weather-map':      'เปิดแผนที่',
+    'compare-title':    'เปรียบเทียบข้อมูล',
+    'cmp-temp':         'Tโรงอบ VS Tพื้นที่ (°C)',
+    'cmp-humi':         'ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)',
+    'last-title':       'ข้อมูลล่าสุด',
+    'prog-title':       'เลือกโปรแกรมอบแห้ง',
+    'fan-title':        'ควบคุมพัดลม',
+    'fan-auto-btn':     'AUTO (อัตโนมัติ)',
+    'fan-on-btn':       'ON (บังคับเปิด)',
+    'fan-off-btn':      'OFF (บังคับปิด)',
+    'night-title':      'ตั้งเวลา Night Guard',
+    'night-start-lbl':  'เวลาเริ่ม (HH:MM)',
+    'night-end-lbl':    'เวลาสิ้นสุด (HH:MM)',
+    'night-send-btn':   'ส่งเวลา Night Guard',
+    'alert-title':      'จัดการการแจ้งเตือน',
+    'rain-clear-btn':   'ยกเลิก Rain Mode',
+    'stall-ack-btn':    'รับทราบ Fan Stall',
+    'query-btn':        'Query Status',
+    'cs-prog-lbl':      'โปรแกรม',
+    'cs-fan-lbl':       'พัดลม',
+    'cs-state-lbl':     'โหมด',
+    'cs-humi-lbl':      'ความชื้นเป้าหมาย',
+    'cs-temp-lbl':      'อุณหภูมิสูงสุด',
+    'hist-range-lbl':   'ช่วงเวลา:',
+    'hist-24h':         '24 ชั่วโมง',
+    'hist-3d':          '3 วัน',
+    'hist-7d':          '7 วัน',
+    'hist-30d':         '30 วัน',
+    'hist-6m':          '6 เดือน',
+    'hist-12m':         '12 เดือน',
+    'hist-refresh':     'รีเฟรช',
+    'chart-temp-title': 'อุณหภูมิ (°C)',
+    'chart-humi-title': 'ความชื้น (%RH)',
+    'raw-title':        'ข้อมูลดิบ (20 แถวล่าสุด)',
+    'col-time':         'เวลา',
+    'col-air':          'T.อากาศ',
+    'col-humi':         'ความชื้น',
+    'col-prod':         'T.ผลิตภัณฑ์',
+    'col-fan':          'พัดลม',
+    'col-prog':         'โปรแกรม',
+    'col-mode':         'โหมด',
+    'stat-avg-temp-lbl':'อุณหภูมิเฉลี่ย',
+    'stat-avg-humi-lbl':'ความชื้นเฉลี่ย',
+    'stat-fan-lbl':     'พัดลมทำงาน',
+    'mqtt-log-title':   'MQTT Log',
+    'cmd-log-title':    'Command Log',
+    'conn-ok':          'เชื่อมต่อแล้ว',
+    'conn-ing':         'กำลังเชื่อมต่อ...',
+    'conn-err':         'เชื่อมต่อไม่ได้',
+    'curr-status':      'สถานะปัจจุบัน',
+  },
+  en: {
+    'realtime-tab':     'Realtime',
+    'control-tab':      'Control',
+    'history-tab':      'History',
+    'v-air-label':      'Air Temp.',
+    'v-humi-label':     'Humidity',
+    'v-prod-label':     'Product Temp.',
+    'v-fan-label':      'Fan Status',
+    'v-prog-label':     'Program',
+    'v-state-label':    'System Mode',
+    'v-fanmin-label':   'Fan/Today',
+    'weather-title':    'Local Weather',
+    'weather-humi':     'Relative Humidity',
+    'weather-feels':    'Feels Like',
+    'weather-wind':     'Wind',
+    'weather-rain':     'Rain (this hr)',
+    'weather-cloud':    'Cloud Cover',
+    'weather-src':      'Source',
+    'weather-view':     'View Area Data',
+    'weather-map':      'Open Map',
+    'compare-title':    'Data Comparison',
+    'cmp-temp':         'T.Dryer VS T.Area (°C)',
+    'cmp-humi':         'Humidity Dryer VS Area (%RH)',
+    'last-title':       'Latest Data',
+    'prog-title':       'Select Drying Program',
+    'fan-title':        'Fan Control',
+    'fan-auto-btn':     'AUTO',
+    'fan-on-btn':       'Force ON',
+    'fan-off-btn':      'Force OFF',
+    'night-title':      'Night Guard Schedule',
+    'night-start-lbl':  'Start Time (HH:MM)',
+    'night-end-lbl':    'End Time (HH:MM)',
+    'night-send-btn':   'Send Night Guard',
+    'alert-title':      'Alert Management',
+    'rain-clear-btn':   'Clear Rain Mode',
+    'stall-ack-btn':    'Ack Fan Stall',
+    'query-btn':        'Query Status',
+    'cs-prog-lbl':      'Program',
+    'cs-fan-lbl':       'Fan',
+    'cs-state-lbl':     'Mode',
+    'cs-humi-lbl':      'Target Humidity',
+    'cs-temp-lbl':      'Max Temp',
+    'hist-range-lbl':   'Range:',
+    'hist-24h':         '24 Hours',
+    'hist-3d':          '3 Days',
+    'hist-7d':          '7 Days',
+    'hist-30d':         '30 Days',
+    'hist-6m':          '6 Months',
+    'hist-12m':         '12 Months',
+    'hist-refresh':     'Refresh',
+    'chart-temp-title': 'Temperature (°C)',
+    'chart-humi-title': 'Humidity (%RH)',
+    'raw-title':        'Raw Data (Last 20)',
+    'col-time':         'Time',
+    'col-air':          'Air T.',
+    'col-humi':         'Humidity',
+    'col-prod':         'Product T.',
+    'col-fan':          'Fan',
+    'col-prog':         'Program',
+    'col-mode':         'Mode',
+    'stat-avg-temp-lbl':'Avg. Temperature',
+    'stat-avg-humi-lbl':'Avg. Humidity',
+    'stat-fan-lbl':     'Fan Runtime',
+    'mqtt-log-title':   'MQTT Log',
+    'cmd-log-title':    'Command Log',
+    'conn-ok':          'Connected',
+    'conn-ing':         'Connecting...',
+    'conn-err':         'Disconnected',
+    'curr-status':      'Current Status',
+  }
+};
+
+let currentLang = localStorage.getItem('lang') || 'th';
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  document.getElementById('lang-th').classList.toggle('active', lang==='th');
+  document.getElementById('lang-en').classList.toggle('active', lang==='en');
+  applyLang();
+}
+
+function t(key) {
+  return (I18N[currentLang] && I18N[currentLang][key]) || I18N['th'][key] || key;
+}
+
+function applyLang() {
+  // แปล elements ที่มี data-i18n attribute
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  // แปล tabs
+  document.querySelectorAll('[data-th]').forEach(el => {
+    el.textContent = currentLang==='th'
+      ? el.getAttribute('data-th')
+      : el.getAttribute('data-en');
+  });
+}
+
+// ════════════════════════════════════════
+//  Font size control
+// ════════════════════════════════════════
+function setFont(size) {
+  ['sm','md','lg'].forEach(s => {
+    document.body.classList.remove('font-'+s);
+    document.getElementById('fs-'+s).classList.remove('active');
+  });
+  document.body.classList.add('font-'+size);
+  document.getElementById('fs-'+size).classList.add('active');
+  localStorage.setItem('fontSize', size);
+}
+
+(function initPrefs() {
+  const savedFont = localStorage.getItem('fontSize') || 'md';
+  setFont(savedFont);
+  const savedLang = localStorage.getItem('lang') || 'th';
+  setLang(savedLang);
+})();
 
 function toggleTheme() {
   document.body.classList.toggle('light');
@@ -799,7 +1030,7 @@ function updateWeatherUI() {
   $('w-temp').textContent = weatherState.temp + '°';
   $('w-humi').textContent = weatherState.humi + '%';
   $('w-updated').textContent = 'อัปเดต: ' + weatherState.time + ' น.';
-  $('w-location').textContent = 'พิกัด ' + (weatherState.lat||'12.5107') + ', ' + (weatherState.lon||'102.1470');
+  $('w-location').textContent = 'ต.พลิ้ว อ.แหลมสิงห์ จ.จันทบุรี';
   $('last-weather').textContent = weatherState.time;
   // extended fields
   const fl = $('w-feels'); if (fl && weatherState.feelsLike) fl.textContent = weatherState.feelsLike + '°C';
@@ -859,14 +1090,39 @@ function initRtChart() {
     data: {
       labels: labs,
       datasets: [
-        { label:'T.อากาศ',      data: [...rtAllData.air],  borderColor:'#60a5fa', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
-        { label:'ความชื้น',      data: [...rtAllData.humi], borderColor:'#34d399', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
-        { label:'T.ผลิตภัณฑ์', data: [...rtAllData.prod], borderColor:'#fbbf24', borderWidth:1.8, pointRadius:0, tension:.3, spanGaps:true },
+        { label:'T.อากาศ',
+          data: [...rtAllData.air],
+          borderColor:'#60a5fa', backgroundColor:'#60a5fa22',
+          borderWidth:2, tension:.3, spanGaps:true, fill:false,
+          yAxisID: 'yT',
+          pointRadius: ctx => ctx.dataIndex === lastFilledIdx(rtAllData.air) ? 5 : 0,
+          pointBackgroundColor:'#60a5fa', pointBorderColor:'#fff', pointBorderWidth:1.5,
+        },
+        { label:'ความชื้น',
+          data: [...rtAllData.humi],
+          borderColor:'#34d399', backgroundColor:'#34d39922',
+          borderWidth:2, tension:.3, spanGaps:true, fill:false,
+          yAxisID: 'yH',
+          pointRadius: ctx => ctx.dataIndex === lastFilledIdx(rtAllData.humi) ? 5 : 0,
+          pointBackgroundColor:'#34d399', pointBorderColor:'#fff', pointBorderWidth:1.5,
+        },
+        { label:'T.ผลิตภัณฑ์',
+          data: [...rtAllData.prod],
+          borderColor:'#fb923c', backgroundColor:'#fb923c22',
+          borderWidth:2, tension:.3, spanGaps:true, fill:false,
+          yAxisID: 'yT',
+          pointRadius: ctx => ctx.dataIndex === lastFilledIdx(rtAllData.prod) ? 5 : 0,
+          pointBackgroundColor:'#fb923c', pointBorderColor:'#fff', pointBorderWidth:1.5,
+        },
       ]
     },
     options: {
       responsive:true, animation:false, spanGaps:true,
-      plugins:{ legend:{ labels:{ color:'#5a7090', font:{size:10} } } },
+      plugins:{
+        legend:{ labels:{ color:'#5a7090', font:{size:10} } },
+        tooltip:{ mode:'index', intersect:false },
+        timeBg:{ zones:[], seasons:[] },
+      },
       scales:{
         x:{
           ticks:{
@@ -874,16 +1130,54 @@ function initRtChart() {
             maxTicksLimit:25,
             callback: function(val,idx){ return idx%2===0 ? this.getLabelForValue(val) : ''; }
           },
-          grid:{ color:'#1e2d45' }
+          grid:{ color:'rgba(30,45,69,0.35)' }
         },
-        y:{
+        yT:{
+          type:'linear', position:'left',
+          min:15, max:75,
+          ticks:{ color:'#60a5fa', font:{size:9}, stepSize:10 },
+          grid:{ color:'rgba(30,45,69,0.35)' },
+          title:{ display:true, text:'°C', color:'#60a5fa', font:{size:9} }
+        },
+        yH:{
+          type:'linear', position:'right',
           min:0, max:100,
-          ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 },
-          grid:{ color:'#1e2d45' }
+          ticks:{ color:'#34d399', font:{size:9}, stepSize:10 },
+          grid:{ drawOnChartArea:false },
+          title:{ display:true, text:'%RH', color:'#34d399', font:{size:9} }
         }
       }
     }
   });
+}
+
+function lastFilledIdx(arr) {
+  for (let i = arr.length-1; i >= 0; i--) {
+    if (arr[i] !== null) return i;
+  }
+  return -1;
+}
+
+function drawEndLabels(chart, datasets3) {
+  // วาด label ตัวเลขที่จุดสุดท้ายของแต่ละเส้น
+  const colors = ['#60a5fa','#34d399','#fb923c'];
+  const keys   = ['air','humi','prod'];
+  const ctx    = chart.ctx;
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+  ctx.save();
+  keys.forEach((k, i) => {
+    const idx = lastFilledIdx(datasets3[k]);
+    if (idx < 0) return;
+    const val = datasets3[k][idx];
+    const x   = xScale.getPixelForValue(idx);
+    const y   = yScale.getPixelForValue(val);
+    ctx.fillStyle = colors[i];
+    ctx.font = 'bold 11px IBM Plex Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(val.toFixed(1), x + 6, y - 4);
+  });
+  ctx.restore();
 }
 
 function pushRtChart(d) {
@@ -902,48 +1196,210 @@ function pushRtChart(d) {
   rtChart.data.datasets[0].data = [...rtAllData.air];
   rtChart.data.datasets[1].data = [...rtAllData.humi];
   rtChart.data.datasets[2].data = [...rtAllData.prod];
+  rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
   rtChart.update('none');
+  drawEndLabels(rtChart, rtAllData);
 }
 
 // ════════════════════════════════════════
 //  HISTORY CHARTS
 // ════════════════════════════════════════
 let histTempChart, histHumiChart;
-function initHistCharts() {
-  const opts = (label, color) => ({
-    type: 'line',
-    data: { labels:[], datasets:[{ label, data:[], borderColor:color, borderWidth:1.5, pointRadius:0, tension:.3, fill:true, backgroundColor:color+'18', spanGaps:true }] },
-    options: {
-      responsive:true, animation:false,
-      plugins:{ legend:{ display:false } },
-      scales:{
-        x:{
-          ticks:{
-            color:'#5a7090', font:{size:8}, maxRotation:45,
-            callback: function(val,idx,ticks) {
-              // แสดงทุก N label ตามความหนาแน่น
-              const step = Math.max(1, Math.floor(ticks.length/12));
-              return idx%step===0 ? this.getLabelForValue(val) : '';
-            }
-          },
-          grid:{ color:'#1e2d45' }
-        },
-        y:{
-          min:0, max:100,
-          ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 },
-          grid:{ color:'#1e2d45' }
-        }
+
+// ── Chart background plugin ─────────────────────────────
+const timeBgPlugin = {
+  id: 'timeBg',
+  beforeDraw(chart, args, options) {
+    if (!options || !options.zones || options.zones.length === 0) return;
+    const ca = chart.chartArea;
+    if (!ca) return;
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const labels = chart.data.labels;
+    if (!labels || labels.length === 0) return;
+    const {left, right, top, bottom} = ca;
+    const ctx = chart.ctx;
+    ctx.save();
+    options.zones.forEach(z => {
+      const x0 = xScale.getPixelForValue(z.from);
+      const x1 = xScale.getPixelForValue(z.to + 1);
+      const rx0 = Math.max(left,  Math.min(x0, x1));
+      const rx1 = Math.min(right, Math.max(x0, x1));
+      if (rx1 <= rx0) return;
+      ctx.fillStyle = z.color;
+      ctx.fillRect(rx0, top, rx1 - rx0, bottom - top);
+    });
+    ctx.restore();
+  },
+  afterDraw(chart, args, options) {
+    // วาดสัญลักษณ์ฤดูกาลตรงกลาง zone
+    if (!options || !options.seasons || options.seasons.length === 0) return;
+    const ca = chart.chartArea;
+    if (!ca) return;
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const ctx = chart.ctx;
+    const isDark = !document.body.classList.contains('light');
+    ctx.save();
+    options.seasons.forEach(s => {
+      const x0 = xScale.getPixelForValue(s.from);
+      const x1 = xScale.getPixelForValue(s.to + 1);
+      const cx  = Math.max(ca.left, Math.min(ca.right, (x0+x1)/2));
+      const cy  = ca.top + 22;
+      // วงกลมพื้นหลัง
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI*2);
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      ctx.fill();
+      // สัญลักษณ์
+      ctx.font = '15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.sym, cx, cy);
+      // ชื่อย่อ
+      if (x1 - x0 > 60) {
+        ctx.font = isDark
+          ? '500 9px IBM Plex Sans Thai, sans-serif'
+          : '500 9px IBM Plex Sans Thai, sans-serif';
+        ctx.fillStyle = isDark ? 'rgba(200,220,255,0.7)' : 'rgba(60,60,100,0.7)';
+        ctx.fillText(s.label, cx, cy + 18);
+      }
+    });
+    ctx.restore();
+  }
+};
+Chart.register(timeBgPlugin);
+
+// สร้าง zones สำหรับ time-based charts
+function makeTimeZones(labels, rangeH) {
+  const zones = [];
+  if (rangeH > 168) return zones; // ไม่ใช้กับ 30วัน+
+  // สีตาม theme
+  const isDark = !document.body.classList.contains('light');
+  const NIGHT  = isDark ? 'rgba(15,25,65,0.50)'  : 'rgba(200,215,255,0.28)';
+  const DAWN   = isDark ? 'rgba(90,50,0,0.42)'   : 'rgba(255,160,30,0.22)';
+
+  labels.forEach((lbl, idx) => {
+    // parse ชั่วโมงจาก label เช่น "22:00" หรือ "22/3 18:00"
+    const match = lbl.match(/(\d{1,2}):00/);
+    if (!match) return;
+    const h = parseInt(match[1]);
+    let color = null;
+    if (h >= 19 || h < 6)       color = NIGHT; // กลางคืน
+    else if (h < 8 || h >= 16)  color = DAWN;  // เช้า+เย็น
+    if (color) {
+      // merge กับ zone ก่อนหน้าถ้าสีเดิม
+      const last = zones[zones.length-1];
+      if (last && last.color === color && last.to === idx-1) {
+        last.to = idx;
+      } else {
+        zones.push({ from: idx, to: idx, color });
       }
     }
   });
-  histTempChart = new Chart($('chart-hist-temp').getContext('2d'), opts('อุณหภูมิ','#60a5fa'));
-  histHumiChart = new Chart($('chart-hist-humi').getContext('2d'), opts('ความชื้น','#34d399'));
+  return zones;
+}
+
+// สร้าง zones สำหรับฤดูกาล (6/12 เดือน)
+function makeSeasonZones(labels) {
+  const zones = [];
+  const isDark = !document.body.classList.contains('light');
+  const HOT   = isDark ? 'rgba(100,35,0,0.40)'  : 'rgba(255,140,40,0.20)';  // ร้อน: ส้มทอง
+  const RAIN  = isDark ? 'rgba(0,40,90,0.40)'   : 'rgba(40,120,240,0.20)';  // ฝน: ฟ้าเข้ม
+  const COLD  = isDark ? 'rgba(30,10,70,0.40)'  : 'rgba(120,80,210,0.20)';  // หนาว: ม่วง
+
+  labels.forEach((lbl, idx) => {
+    // parse เดือนจาก label เช่น "มี.ค. 68" หรือ "สัปดาห์ 22/3"
+    let month = null, slabel = '';
+    // ลอง match ชื่อเดือนภาษาไทยย่อ
+    const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                      'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    thMonths.forEach((m,i) => { if (lbl.includes(m)) month = i+1; });
+    // ลอง match ตัวเลขเดือน เช่น "22/3"
+    if (!month) {
+      const m2 = lbl.match(/\/(\d{1,2})/);
+      if (m2) month = parseInt(m2[1]);
+    }
+    if (!month) return;
+    let color = null;
+    let sym = null;
+    if (month >= 3 && month <= 6)       { color = HOT;  sym = '☀'; slabel = 'ร้อน'; }
+    else if (month >= 7 && month <= 10) { color = RAIN; sym = '⛈'; slabel = 'ฝน';   }
+    else                                { color = COLD; sym = '❄'; slabel = 'หนาว';}
+    const last = zones[zones.length-1];
+    if (last && last.color === color && last.to === idx-1) {
+      last.to = idx;
+    } else {
+      zones.push({ from: idx, to: idx, color, sym, label: slabel });
+    }
+  });
+  // สร้าง seasons array (zone ที่มีสัญลักษณ์) สำหรับ afterDraw
+  const seasons = zones.map(z => ({ ...z }));
+  return { zones, seasons };
+}
+
+function initHistCharts() {
+  const xScaleCfg = {
+    ticks:{
+      color:'#5a7090', font:{size:8}, maxRotation:45, autoSkip:false,
+      callback: function(val,idx,ticks) {
+        const n = ticks.length, r = histRange;
+        let step = 1;
+        if      (r <= 24)   step = 1;
+        else if (r <= 72)   step = Math.max(1,Math.floor(n/16));
+        else if (r <= 168)  step = Math.max(1,Math.floor(n/14));
+        else if (r <= 720)  step = Math.max(1,Math.floor(n/15));
+        else if (r <= 4380) step = Math.max(1,Math.floor(n/12));
+        else                step = 1;
+        return idx%step===0 ? this.getLabelForValue(val) : '';
+      }
+    },
+    grid:{ color:'rgba(30,45,69,0.3)' }
+  };
+
+  const basePlugins = {
+    legend:{ display:false },
+    tooltip:{ mode:'index', intersect:false },
+    timeBg:{ zones:[], seasons:[] },
+  };
+
+  histTempChart = new Chart($('chart-hist-temp').getContext('2d'), {
+    type:'line',
+    data:{ labels:[], datasets:[{
+      label:'อุณหภูมิ', data:[], borderColor:'#60a5fa', borderWidth:1.5,
+      pointRadius:0, tension:.3, fill:true, backgroundColor:'#60a5fa18', spanGaps:true
+    }]},
+    options:{
+      responsive:true, animation:false,
+      plugins: basePlugins,
+      scales:{
+        x: xScaleCfg,
+        y:{ min:15, max:75, ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 }, grid:{ color:'rgba(30,45,69,0.3)' } }
+      }
+    }
+  });
+
+  histHumiChart = new Chart($('chart-hist-humi').getContext('2d'), {
+    type:'line',
+    data:{ labels:[], datasets:[{
+      label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5,
+      pointRadius:0, tension:.3, fill:true, backgroundColor:'#34d39918', spanGaps:true
+    }]},
+    options:{
+      responsive:true, animation:false,
+      plugins: basePlugins,
+      scales:{
+        x: xScaleCfg,
+        y:{ min:0, max:100, ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 }, grid:{ color:'rgba(30,45,69,0.3)' } }
+      }
+    }
+  });
 }
 
 function setRange(h, el) {
   histRange = h;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   loadHistory();
 }
 
@@ -992,8 +1448,12 @@ function parseAndRenderHistory(csv) {
     });
   }
   if (!rows.length) { $('hist-status').textContent = 'ไม่มีข้อมูลในช่วงเวลาที่เลือก'; return; }
+  // force update X ticks เมื่อ histRange เปลี่ยน
+  [histTempChart, histHumiChart].forEach(ch => {
+    if (ch) { ch.options.scales.x.ticks.autoSkip = false; ch.update('none'); }
+  });
   renderHistCharts(rows);
-  renderHistTable(rows.slice(-50).reverse());
+  renderHistTable(rows.slice(-20).reverse());
   renderHistStats(rows);
 }
 
@@ -1012,34 +1472,206 @@ function renderHistCharts(rows) {
   };
   // 24 ชม. — group เป็นรายชั่วโมง เอา avg ของแต่ละชั่วโมง
   let labels, airData, humiData;
+  const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null;
+
   if (rangeH <= 24) {
-    // สร้าง bucket 24 ชั่วโมง 00:00-23:00
+    // 24 ชม. — bucket รายชั่วโมง 00:00-23:00
     const buckets = {};
     for (let h=0; h<24; h++) buckets[String(h).padStart(2,'0')+':00'] = {air:[],humi:[]};
     rows.forEach(r => {
-      const key = r.ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}).slice(0,5);
-      const hkey = key.slice(0,2)+':00';
+      const hkey = String(r.ts.getHours()).padStart(2,'0')+':00';
       if (buckets[hkey]) {
         if (r.air  !== null && !isNaN(r.air))  buckets[hkey].air.push(r.air);
         if (r.humi !== null && !isNaN(r.humi)) buckets[hkey].humi.push(r.humi);
       }
     });
-    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
     labels   = Object.keys(buckets);
-    airData  = labels.map(k => avg(buckets[k].air)  !== null ? +avg(buckets[k].air).toFixed(1)  : null);
-    humiData = labels.map(k => avg(buckets[k].humi) !== null ? +avg(buckets[k].humi).toFixed(1) : null);
+    airData  = labels.map(k => avg(buckets[k].air));
+    humiData = labels.map(k => avg(buckets[k].humi));
+
+  } else if (rangeH <= 72) {
+    // 3 วัน — bucket ราย 3 ชั่วโมง เช่น 00:00, 03:00, 06:00...
+    const step = 3;
+    const buckets = {};
+    for (let d=0; d<3; d++) {
+      for (let h=0; h<24; h+=step) {
+        const dt = new Date(Date.now() - (2-d)*86400000);
+        const key = dt.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+                  + ' ' + String(h).padStart(2,'0')+':00';
+        buckets[key] = {air:[],humi:[]};
+      }
+    }
+    rows.forEach(r => {
+      const slotH = Math.floor(r.ts.getHours()/step)*step;
+      const key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+                + ' ' + String(slotH).padStart(2,'0')+':00';
+      if (buckets[key]) {
+        if (r.air  !== null && !isNaN(r.air))  buckets[key].air.push(r.air);
+        if (r.humi !== null && !isNaN(r.humi)) buckets[key].humi.push(r.humi);
+      }
+    });
+    labels   = Object.keys(buckets);
+    airData  = labels.map(k => avg(buckets[k].air));
+    humiData = labels.map(k => avg(buckets[k].humi));
+
+  } else if (rangeH <= 168) {
+    // 7 วัน — bucket ทุก 6 ชม. เช่น 00:00, 06:00, 12:00, 18:00
+    const step = 6;
+    const buckets = {};
+    rows.forEach(r => {
+      const slotH = Math.floor(r.ts.getHours()/step)*step;
+      const key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+                + ' ' + String(slotH).padStart(2,'0')+':00';
+      if (!buckets[key]) buckets[key] = {air:[],humi:[], ts: r.ts};
+      if (r.air  !== null && !isNaN(r.air))  buckets[key].air.push(r.air);
+      if (r.humi !== null && !isNaN(r.humi)) buckets[key].humi.push(r.humi);
+    });
+    labels   = Object.keys(buckets);
+    airData  = labels.map(k => avg(buckets[k].air));
+    humiData = labels.map(k => avg(buckets[k].humi));
+
+  } else if (rangeH <= 720) {
+    // 30 วัน — 30 วัน วันปัจจุบันอยู่ตำแหน่งที่ 25 เฉลี่ยรายวัน
+    const TOTAL_D = 30;
+    const CUR_D   = 25;
+    const todayMs = new Date().setHours(0,0,0,0);
+    const startMs = todayMs - (CUR_D - 1) * 86400000;
+    const dayBuckets = {};
+    const dayOrder   = [];
+    for (let i = 0; i < TOTAL_D; i++) {
+      const ms  = startMs + i * 86400000;
+      const dt  = new Date(ms);
+      const key = dt.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+      const dk  = dt.toISOString().slice(0,10);
+      dayBuckets[dk] = {air:[], humi:[], key};
+      dayOrder.push(dk);
+    }
+    rows.forEach(r => {
+      const dk = r.ts.toISOString().slice(0,10);
+      if (dayBuckets[dk]) {
+        if (r.air  !== null && !isNaN(r.air))  dayBuckets[dk].air.push(r.air);
+        if (r.humi !== null && !isNaN(r.humi)) dayBuckets[dk].humi.push(r.humi);
+      }
+    });
+    labels   = dayOrder.map(k => dayBuckets[k].key);
+    airData  = dayOrder.map(k => avg(dayBuckets[k].air));
+    humiData = dayOrder.map(k => avg(dayBuckets[k].humi));
+
+  } else if (rangeH <= 4380) {
+    // 6 เดือน — 6 เดือน เฉลี่ยรายเดือน label เป็น "มี.ค." เดือนปัจจุบันอยู่ที่ 5
+    const TOTAL_6M = 6;
+    const CUR_6M   = 5;
+    const now6     = new Date();
+    const curMo6   = now6.getFullYear()*12 + now6.getMonth();
+    const start6   = curMo6 - (CUR_6M - 1);
+    const mo6Buckets = {};
+    const mo6Order   = [];
+    for (let i = 0; i < TOTAL_6M; i++) {
+      const moIdx = start6 + i;
+      const yr    = Math.floor(moIdx / 12);
+      const mo    = moIdx % 12;
+      const dt    = new Date(yr, mo, 1);
+      const key   = dt.toLocaleDateString('th-TH',{month:'short'});
+      const mkey  = yr*100 + mo;
+      mo6Buckets[mkey] = {air:[], humi:[], key};
+      mo6Order.push(mkey);
+    }
+    rows.forEach(r => {
+      const mkey = r.ts.getFullYear()*100 + r.ts.getMonth();
+      if (mo6Buckets[mkey]) {
+        if (r.air  !== null && !isNaN(r.air))  mo6Buckets[mkey].air.push(r.air);
+        if (r.humi !== null && !isNaN(r.humi)) mo6Buckets[mkey].humi.push(r.humi);
+      }
+    });
+    labels   = mo6Order.map(k => mo6Buckets[k].key);
+    airData  = mo6Order.map(k => avg(mo6Buckets[k].air));
+    humiData = mo6Order.map(k => avg(mo6Buckets[k].humi));
+
   } else {
-    // 3วัน+ — แสดงทุก row ตามปกติ
-    labels   = rows.map(r => fmtLabel(r.ts));
-    airData  = rows.map(r => r.air);
-    humiData = rows.map(r => r.humi);
+    // 12 เดือน — 12 เดือน เฉลี่ยรายเดือน label เป็น "มี.ค." เดือนปัจจุบันอยู่ที่ 10
+    const TOTAL_MO = 12;
+    const CUR_MO   = 10;
+    const now      = new Date();
+    const curMoIdx = now.getFullYear()*12 + now.getMonth();
+    const startMo  = curMoIdx - (CUR_MO - 1);
+    const moBuckets = {};
+    const moOrder   = [];
+    for (let i = 0; i < TOTAL_MO; i++) {
+      const moIdx = startMo + i;
+      const yr    = Math.floor(moIdx / 12);
+      const mo    = moIdx % 12;
+      const dt    = new Date(yr, mo, 1);
+      const key   = dt.toLocaleDateString('th-TH',{month:'short'});
+      const mkey  = yr*100 + mo;
+      moBuckets[mkey] = {air:[], humi:[], key};
+      moOrder.push(mkey);
+    }
+    rows.forEach(r => {
+      const mkey = r.ts.getFullYear()*100 + r.ts.getMonth();
+      if (moBuckets[mkey]) {
+        if (r.air  !== null && !isNaN(r.air))  moBuckets[mkey].air.push(r.air);
+        if (r.humi !== null && !isNaN(r.humi)) moBuckets[mkey].humi.push(r.humi);
+      }
+    });
+    labels   = moOrder.map(k => moBuckets[k].key);
+    airData  = moOrder.map(k => avg(moBuckets[k].air));
+    humiData = moOrder.map(k => avg(moBuckets[k].humi));
   }
+  // อัปเดต pointRadius ให้แสดงจุดสุดท้าย
+  const lastNonNull = arr => { for(let i=arr.length-1;i>=0;i--) if(arr[i]!==null) return i; return -1; };
+  // คำนวณ zones ตาม rangeH
+  // zones: 24ชม./3วัน=time, 7วัน=ไม่มี, 6/12เดือน=ฤดูกาล
+  const zones = (rangeH <= 72)
+    ? makeTimeZones(labels, rangeH)
+    : (rangeH > 720)
+      ? makeSeasonZones(labels)
+      : [];
+  const zoneArr    = (typeof zones === 'object' && zones.zones) ? zones.zones    : zones;
+  const seasonArr  = (typeof zones === 'object' && zones.seasons) ? zones.seasons : [];
+  histTempChart.options.plugins.timeBg.zones   = zoneArr;
+  histTempChart.options.plugins.timeBg.seasons = seasonArr;
+  histHumiChart.options.plugins.timeBg.zones   = zoneArr;
+  histHumiChart.options.plugins.timeBg.seasons = seasonArr;
+
   histTempChart.data.labels = labels;
   histTempChart.data.datasets[0].data = airData;
+  histTempChart.data.datasets[0].pointRadius = airData.map((_,i) => i===lastNonNull(airData)?5:0);
+  histTempChart.data.datasets[0].pointBackgroundColor = '#60a5fa';
+  histTempChart.data.datasets[0].pointBorderColor = '#fff';
+  histTempChart.data.datasets[0].pointBorderWidth = 1.5;
   histTempChart.update();
+
   histHumiChart.data.labels = labels;
   histHumiChart.data.datasets[0].data = humiData;
+  histHumiChart.data.datasets[0].pointRadius = humiData.map((_,i) => i===lastNonNull(humiData)?5:0);
+  histHumiChart.data.datasets[0].pointBackgroundColor = '#34d399';
+  histHumiChart.data.datasets[0].pointBorderColor = '#fff';
+  histHumiChart.data.datasets[0].pointBorderWidth = 1.5;
   histHumiChart.update();
+
+  // วาด label ตัวเลขจุดสุดท้าย
+  setTimeout(() => {
+    drawHistEndLabel(histTempChart, airData,  '#60a5fa');
+    drawHistEndLabel(histHumiChart, humiData, '#34d399');
+  }, 50);
+}
+
+function drawHistEndLabel(chart, data, color) {
+  const idx = data.length-1 - [...data].reverse().findIndex(v=>v!==null);
+  if (idx < 0 || idx >= data.length) return;
+  const val = data[idx];
+  if (val === null) return;
+  const ctx    = chart.ctx;
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+  const x = xScale.getPixelForValue(idx);
+  const y = yScale.getPixelForValue(val);
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = 'bold 11px IBM Plex Mono, monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(val.toFixed(1), x - 6, y - 6);
+  ctx.restore();
 }
 
 function renderHistTable(rows) {
@@ -1079,7 +1711,7 @@ function loadDemoHistory() {
       prog: ['FRUIT','MEAT','HERB'][Math.floor(Math.random()*3)] });
   }
   renderHistCharts(rows);
-  renderHistTable(rows.slice(-50).reverse());
+  renderHistTable(rows.slice(-20).reverse());
   renderHistStats(rows);
 }
 
@@ -1088,39 +1720,72 @@ function loadDemoHistory() {
 // ════════════════════════════════════════
 
 async function fetchWeatherDirect() {
-  try {
-    const LAT = 12.510719532073317;
-    const LON = 102.14703938773218;
-    const url = "https://api.open-meteo.com/v1/forecast"
-      + "?latitude=" + LAT + "&longitude=" + LON
-      + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,weather_code"
-      + "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max"
-      + "&forecast_days=1"
-      + "&timezone=Asia%2FBangkok";
-    const res  = await fetch(url);
-    const json = await res.json();
-    const cur  = json.current;
-    const wDesc = getWeatherDesc(cur.weather_code);
-    weatherState = {
-      temp:        cur.temperature_2m.toFixed(1),
-      humi:        Math.round(cur.relative_humidity_2m),
-      feelsLike:   cur.apparent_temperature.toFixed(1),
-      wind:        cur.wind_speed_10m.toFixed(1),
-      windDir:     windDirLabel(cur.wind_direction_10m),
-      rain:        cur.precipitation.toFixed(1),
-      cloud:       cur.cloud_cover,
-      desc:        wDesc,
-      time:        cur.time.replace("T"," ").slice(0,16),
-      lat:         LAT,
-      lon:         LON,
-    };
-    updateWeatherUI();
-    logMqtt("[Weather] พื้นที่ 12.51N,102.15E: " + weatherState.temp + "C " + weatherState.humi + "% " + wDesc, "#22d3ee");
-  } catch(e) {
-    logMqtt("[Weather] Error: " + e.message, "#f87171");
-    // retry หลัง 10 วินาที
-    setTimeout(fetchWeatherDirect, 10000);
+  const LAT = 12.510719532073317;
+  const LON = 102.14703938773218;
+
+  // ลำดับ fallback: 1) Apps Script proxy  2) Open-Meteo โดยตรง  3) wttr.in (no-cors)
+  const sources = [
+    // 1. Apps Script proxy — ต้องตั้งค่า GAS_WEATHER_URL ใน CFG
+    () => fetchViaAppsScript(LAT, LON),
+    // 2. Open-Meteo โดยตรง (อาจถูกบล็อกบน GitHub Pages)
+    () => fetchOpenMeteo(LAT, LON),
+  ];
+
+  for (const src of sources) {
+    try {
+      const data = await src();
+      if (data) {
+        weatherState = { ...data, lat: LAT, lon: LON };
+        updateWeatherUI();
+        logMqtt("[Weather] OK: " + weatherState.temp + "°C " + weatherState.humi + "% " + (weatherState.desc||''), "#22d3ee");
+        return;
+      }
+    } catch(e) {
+      logMqtt("[Weather] source failed: " + e.message, "#fbbf24");
+    }
   }
+  logMqtt("[Weather] ทุก source ล้มเหลว — ตรวจสอบ GAS_WEATHER_URL", "#f87171");
+  setTimeout(fetchWeatherDirect, 30000);
+}
+
+async function fetchViaAppsScript(lat, lon) {
+  if (!CFG.gasWeatherUrl || CFG.gasWeatherUrl === 'YOUR_GAS_WEATHER_URL') return null;
+  const res  = await fetch(CFG.gasWeatherUrl + '?lat=' + lat + '&lon=' + lon);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error);
+  return {
+    temp:      json.temp.toFixed(1),
+    humi:      Math.round(json.humi),
+    feelsLike: (json.feelsLike||json.temp).toFixed(1),
+    wind:      (json.wind||0).toFixed(1),
+    windDir:   windDirLabel(json.windDir||0),
+    rain:      (json.rain||0).toFixed(1),
+    cloud:     json.cloud||0,
+    desc:      getWeatherDesc(json.code||0),
+    time:      json.time || new Date().toLocaleString('th-TH'),
+  };
+}
+
+async function fetchOpenMeteo(lat, lon) {
+  const url = "https://api.open-meteo.com/v1/forecast"
+    + "?latitude=" + lat + "&longitude=" + lon
+    + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,weather_code"
+    + "&forecast_days=1&timezone=Asia%2FBangkok";
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  const cur  = json.current;
+  return {
+    temp:      cur.temperature_2m.toFixed(1),
+    humi:      Math.round(cur.relative_humidity_2m),
+    feelsLike: cur.apparent_temperature.toFixed(1),
+    wind:      cur.wind_speed_10m.toFixed(1),
+    windDir:   windDirLabel(cur.wind_direction_10m),
+    rain:      cur.precipitation.toFixed(1),
+    cloud:     cur.cloud_cover,
+    desc:      getWeatherDesc(cur.weather_code),
+    time:      cur.time.replace("T"," ").slice(0,16),
+  };
 }
 
 function windDirLabel(deg) {
@@ -1285,7 +1950,8 @@ initRtChart();
 initHistCharts();
 connectMQTT();
 fetchWeather();
-setInterval(fetchWeather, 300000); // refresh weather ทุก 5 นาที
+setInterval(fetchWeather, 300000);
+setTimeout(applyLang, 100); // apply after DOM ready // refresh weather ทุก 5 นาที
 </script>
 </body>
 </html>
