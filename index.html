@@ -1446,12 +1446,13 @@ function lastFilledIdx(arr) {
 }
 
 function drawEndLabels(chart, datasets3) {
-  // วาด label ตัวเลขที่จุดสุดท้ายของแต่ละเส้น
+  try {
   const colors = ['#60a5fa','#34d399','#fb923c'];
   const keys   = ['air','humi','prod'];
   const ctx    = chart.ctx;
-  const xScale = chart.scales.x;
-  const yScale = chart.scales.y;
+  const xScale = chart.scales && chart.scales.x;
+  const yScale = chart.scales && (chart.scales.yT || chart.scales.y);
+  if (!xScale || !yScale || typeof xScale.getPixelForValue !== 'function') return;
   ctx.save();
   keys.forEach((k, i) => {
     const idx = lastFilledIdx(datasets3[k]);
@@ -1465,6 +1466,7 @@ function drawEndLabels(chart, datasets3) {
     ctx.fillText(val.toFixed(1), x + 6, y - 4);
   });
   ctx.restore();
+  } catch(e) {}
 }
 
 function pushRtChart(d) {
@@ -1501,35 +1503,36 @@ let histTempChart, histHumiChart;
 const timeBgPlugin = {
   id: 'timeBg',
   beforeDraw(chart, args, options) {
-    if (!options || !options.zones || options.zones.length === 0) return;
-    const ca = chart.chartArea;
-    if (!ca) return;
-    const xScale = chart.scales.x;
-    if (!xScale || !xScale.getPixelForValue) return;
-    try { xScale.getPixelForValue(0); } catch(e) { return; }
-    const labels = chart.data.labels;
-    if (!labels || labels.length === 0) return;
-    const {left, right, top, bottom} = ca;
-    const ctx = chart.ctx;
-    ctx.save();
-    options.zones.forEach(z => {
-      const x0 = xScale.getPixelForValue(z.from);
-      const x1 = xScale.getPixelForValue(z.to + 1);
-      const rx0 = Math.max(left,  Math.min(x0, x1));
-      const rx1 = Math.min(right, Math.max(x0, x1));
-      if (rx1 <= rx0) return;
-      ctx.fillStyle = z.color;
-      ctx.fillRect(rx0, top, rx1 - rx0, bottom - top);
-    });
-    ctx.restore();
-  },
+    try {
+      if (!options || !options.zones || options.zones.length === 0) return;
+      const ca = chart.chartArea;
+      if (!ca) return;
+      const xScale = chart.scales && chart.scales.x;
+      if (!xScale || typeof xScale.getPixelForValue !== 'function') return;
+      const {left, right, top, bottom} = ca;
+      const ctx = chart.ctx;
+      ctx.save();
+      options.zones.forEach(z => {
+        try {
+          const x0 = xScale.getPixelForValue(z.from);
+          const x1 = xScale.getPixelForValue(z.to + 1);
+          const rx0 = Math.max(left, Math.min(x0, x1));
+          const rx1 = Math.min(right, Math.max(x0, x1));
+          if (rx1 <= rx0) return;
+          ctx.fillStyle = z.color;
+          ctx.fillRect(rx0, top, rx1 - rx0, bottom - top);
+        } catch(ez) {}
+      });
+      ctx.restore();
+    } catch(e) {}
+    },
   afterDraw(chart, args, options) {
-    // วาดสัญลักษณ์ฤดูกาลตรงกลาง zone
+    try {
     if (!options || !options.seasons || options.seasons.length === 0) return;
     const ca = chart.chartArea;
     if (!ca) return;
-    const xScale = chart.scales.x;
-    if (!xScale) return;
+    const xScale = chart.scales && chart.scales.x;
+    if (!xScale || typeof xScale.getPixelForValue !== 'function') return;
     const ctx = chart.ctx;
     const isDark = !document.body.classList.contains('light');
     ctx.save();
@@ -1558,6 +1561,7 @@ const timeBgPlugin = {
       }
     });
     ctx.restore();
+    } catch(e) {}
   }
 };
 Chart.register(timeBgPlugin);
@@ -1953,21 +1957,24 @@ function renderHistCharts(rows) {
 }
 
 function drawHistEndLabel(chart, data, color) {
-  const idx = data.length-1 - [...data].reverse().findIndex(v=>v!==null);
-  if (idx < 0 || idx >= data.length) return;
-  const val = data[idx];
-  if (val === null) return;
-  const ctx    = chart.ctx;
-  const xScale = chart.scales.x;
-  const yScale = chart.scales.y;
-  const x = xScale.getPixelForValue(idx);
-  const y = yScale.getPixelForValue(val);
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.font = 'bold 11px IBM Plex Mono, monospace';
-  ctx.textAlign = 'right';
-  ctx.fillText(val.toFixed(1), x - 6, y - 6);
-  ctx.restore();
+  try {
+    const lastIdx = data.length-1 - [...data].reverse().findIndex(v=>v!==null);
+    if (lastIdx < 0 || lastIdx >= data.length) return;
+    const val = data[lastIdx];
+    if (val === null) return;
+    const ctx    = chart.ctx;
+    const xScale = chart.scales && chart.scales.x;
+    const yScale = chart.scales && chart.scales.y;
+    if (!xScale || !yScale || typeof xScale.getPixelForValue !== 'function') return;
+    const x = xScale.getPixelForValue(lastIdx);
+    const y = yScale.getPixelForValue(val);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 11px IBM Plex Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(1), x - 6, y - 6);
+    ctx.restore();
+  } catch(e) {}
 }
 
 function renderHistTable(rows) {
