@@ -2312,16 +2312,13 @@ async function openJob() {
 
   // บันทึกลง Apps Script
   try {
-    const payload = {
+    const params = new URLSearchParams({
       action: 'open_job',
       jobNo, product, timeIn,
-      weightIn, unitIn, program, note
-    };
-    const res = await fetch(CFG.gasWeatherUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      weightIn, unitIn, program,
+      note: note || ''
     });
+    const res  = await fetch(CFG.gasWeatherUrl + '?' + params.toString());
     const json = await res.json();
     if (json.status !== 'ok') throw new Error(json.msg || 'Error');
 
@@ -2363,17 +2360,13 @@ async function closeJob() {
     : 'N/A';
 
   try {
-    const payload = {
+    const params = new URLSearchParams({
       action: 'close_job',
-      jobNo:    activeJob.jobNo,
-      timeOut, weightOut,
-      unitOut, dur, pctLoss, note
-    };
-    const res = await fetch(CFG.gasWeatherUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      jobNo:   activeJob.jobNo,
+      timeOut, weightOut, unitOut, dur, pctLoss,
+      note: note || ''
     });
+    const res  = await fetch(CFG.gasWeatherUrl + '?' + params.toString());
     const json = await res.json();
     if (json.status !== 'ok') throw new Error(json.msg || 'Error');
 
