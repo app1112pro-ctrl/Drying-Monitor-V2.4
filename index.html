@@ -1118,17 +1118,27 @@ function setFont(size) {
   const active = document.getElementById('fs-'+size);
   if (active) active.classList.add('active');
   localStorage.setItem('fontSize', size);
-  // แจ้ง Chart.js resize
-  if (rtChart) rtChart.resize();
-  if (histTempChart) histTempChart.resize();
-  if (histHumiChart) histHumiChart.resize();
+  // แจ้ง Chart.js resize (ใช้ optional chaining ป้องกัน before-init error)
+  try { if (typeof rtChart !== 'undefined' && rtChart) rtChart.resize(); } catch(e) {}
+  try { if (typeof histTempChart !== 'undefined' && histTempChart) histTempChart.resize(); } catch(e) {}
+  try { if (typeof histHumiChart !== 'undefined' && histHumiChart) histHumiChart.resize(); } catch(e) {}
 }
 
 (function initPrefs() {
-  const savedFont = localStorage.getItem('fontSize') || 'md';
-  setFont(savedFont);
   const savedLang = localStorage.getItem('lang') || 'th';
   setLang(savedLang);
+  // setFont รันหลัง init เพื่อป้องกัน rtChart before-init error
+  const savedFont = localStorage.getItem('fontSize') || 'md';
+  ['sm','md','lg'].forEach(s => {
+    document.body.classList.remove('font-'+s);
+    const btn = document.getElementById('fs-'+s);
+    if (btn) btn.classList.remove('active');
+  });
+  const sizeMap = { sm:'12px', md:'14px', lg:'17px' };
+  document.body.classList.add('font-'+savedFont);
+  document.body.style.fontSize = sizeMap[savedFont];
+  const activeBtn = document.getElementById('fs-'+savedFont);
+  if (activeBtn) activeBtn.classList.add('active');
 })();
 
 function toggleTheme() {
