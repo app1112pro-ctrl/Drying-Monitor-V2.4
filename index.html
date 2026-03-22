@@ -90,9 +90,10 @@
 
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 0 14px;
+    padding: 12px 0 12px;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    gap: 12px; overflow: hidden;
   }
   .header-left { display: flex; align-items: center; gap: 14px; }
   .logo-mark {
@@ -177,18 +178,18 @@
 
   /* ── Weather sidebar ────────────────────── */
   .main-grid { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
-  .weather-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; overflow: hidden; }
+  .weather-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: hidden; word-break: break-word; }
   .weather-big { font-family: var(--mono); font-size: clamp(36px, 5vw, 64px); font-weight: 800; color: var(--air); line-height: 1; margin: 6px 0 2px; letter-spacing:-1px; }
   .weather-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 5px 0; border-bottom: 1px solid var(--border); }
   .weather-row:last-child { border-bottom: none; }
   .weather-row b { color: var(--text); font-weight: 500; }
   .weather-compare { margin-top: 12px; }
-  .cmp-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: nowrap; }
+  .cmp-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
   .cmp-row:last-child { border-bottom: none; }
-  .cmp-label { color: var(--muted); flex: 1; font-size:11px; line-height:1.3; min-width:0; }
-  .cmp-bar-wrap { width: 60px; flex-shrink: 0; display: flex; gap: 3px; align-items: center; }
+  .cmp-label { color: var(--muted); font-size:11px; line-height:1.3; }
+  .cmp-bar-wrap { display: flex; gap: 4px; align-items: center; flex: 1; }
   .cmp-bar { height: 5px; border-radius: 3px; }
-  .cmp-val { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); text-align: right; white-space: nowrap; flex-shrink: 0; min-width: 110px; }
+  .cmp-val { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
 
   /* ── Program buttons ────────────────────── */
   .prog-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 14px; }
@@ -303,8 +304,8 @@
     font-family: var(--mono); line-height: 1;
   }
   .date-clock-big {
-    font-family: var(--mono); font-size: clamp(20px, 3vw, 40px); font-weight: 800;
-    color: var(--text); letter-spacing: .02em; line-height: 1;
+    font-family: var(--mono); font-size: clamp(18px, 2.5vw, 34px); font-weight: 800;
+    color: var(--text); letter-spacing: .01em; line-height: 1; flex-shrink:0;
   }
 
   .job-form { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:14px; }
@@ -1274,7 +1275,7 @@ function setDelta(id, now, prev, color) {
   if (prev === null) return;
   const diff = (now - prev).toFixed(1);
   const el = $(id);
-  if (Math.abs(diff) < 0.05) { el.textContent = ''; return; }
+  if (Math.abs(diff) < 0.15) { el.textContent = ''; return; }
   el.textContent = (diff > 0 ? '+' : '') + diff;
   el.style.color = diff > 0 ? 'var(--danger)' : 'var(--success)';
 }
@@ -1321,13 +1322,13 @@ function updateCompare() {
   const outW = Math.min((weatherState.temp / maxT) * 100, 100).toFixed(0);
   $('cmp-air-bar').style.width = inW + '%';
   $('cmp-w-bar').style.width   = outW + '%';
-  $('cmp-temp-val').textContent = state.air.toFixed(1) + ' / ' + weatherState.temp + ' °C';
+  $('cmp-temp-val').textContent = state.air.toFixed(1) + '°  /  ' + weatherState.temp + '°C';
 
   if (!state.humi) return;
   const maxH = Math.max(state.humi, weatherState.humi, 100);
   $('cmp-humi-in').style.width  = ((state.humi / maxH)*100).toFixed(0) + '%';
   $('cmp-humi-out').style.width = ((weatherState.humi / maxH)*100).toFixed(0) + '%';
-  $('cmp-humi-val').textContent = state.humi.toFixed(0) + '% / ' + weatherState.humi + '%';
+  $('cmp-humi-val').textContent = state.humi.toFixed(0) + '%  /  ' + weatherState.humi + '%';
 }
 
 // ════════════════════════════════════════
@@ -1504,7 +1505,8 @@ const timeBgPlugin = {
     const ca = chart.chartArea;
     if (!ca) return;
     const xScale = chart.scales.x;
-    if (!xScale) return;
+    if (!xScale || !xScale.getPixelForValue) return;
+    try { xScale.getPixelForValue(0); } catch(e) { return; }
     const labels = chart.data.labels;
     if (!labels || labels.length === 0) return;
     const {left, right, top, bottom} = ca;
