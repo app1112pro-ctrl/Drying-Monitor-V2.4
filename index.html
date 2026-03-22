@@ -50,9 +50,7 @@
     background:var(--bg3); cursor:pointer; position:relative; transition:background .25s;
     flex-shrink:0; outline:none;
   }
-  body.font-sm  { font-size:12px; }
-  body.font-md  { font-size:14px; }
-  body.font-lg  { font-size:17px; }
+
   .font-btn {
     display:flex; align-items:center; gap:2px;
   }
@@ -80,6 +78,12 @@
     font-size: 14px;
     min-height: 100vh;
   }
+  body.font-sm  { font-size: 12px !important; }
+  body.font-sm * { font-size: inherit; }
+  body.font-md  { font-size: 14px !important; }
+  body.font-md * { font-size: inherit; }
+  body.font-lg  { font-size: 17px !important; }
+  body.font-lg * { font-size: inherit; }
 
   /* ── Layout ─────────────────────────────── */
   .shell { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
@@ -271,6 +275,85 @@
   }
   .lang-btn:hover  { color:var(--text); border-color:var(--air); }
   .lang-btn.active { color:var(--air);  border-color:var(--air); background:var(--bg2); }
+
+  .date-bar {
+    display: flex; align-items: flex-end; justify-content: flex-start;
+    gap: 0; padding: 10px 0 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .date-big {
+    display: flex; align-items: baseline; gap: 10px;
+    line-height: 1;
+  }
+  .date-num {
+    font-family: var(--mono); font-size: 52px; font-weight: 500;
+    color: var(--air); letter-spacing: -2px; line-height: 1;
+  }
+  .date-meta {
+    display: flex; flex-direction: column; justify-content: flex-end;
+    gap: 3px; padding-bottom: 4px;
+  }
+  .date-month-txt {
+    font-size: 20px; font-weight: 600; color: var(--text);
+    letter-spacing: -.01em; line-height: 1;
+  }
+  .date-year-txt {
+    font-size: 13px; color: var(--muted);
+    font-family: var(--mono); line-height: 1;
+  }
+  .date-weekday-txt {
+    font-size: 12px; color: var(--muted);
+    font-family: var(--font); padding-bottom: 6px;
+    padding-left: 2px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+    padding-left: 12px;
+    align-self: flex-end;
+    line-height: 1.4;
+  }
+
+  .job-form { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:14px; }
+  .job-form-title { font-size:11px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .form-row.single { grid-template-columns:1fr; }
+  .form-group label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+  .form-group select,
+  .form-group input[type=text],
+  .form-group input[type=number] {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    border-radius:6px; padding:8px 10px; color:var(--text);
+    font-family:var(--font); font-size:13px; outline:none;
+  }
+  .form-group select:focus,
+  .form-group input:focus { border-color:var(--air); }
+  .job-btn {
+    width:100%; padding:11px; border-radius:8px; cursor:pointer;
+    font-size:13px; font-weight:600; font-family:var(--font);
+    border:none; transition:all .15s; margin-top:4px;
+  }
+  .job-btn.open  { background:#166534; color:#86efac; }
+  .job-btn.open:hover  { background:#15803d; }
+  .job-btn.close { background:#991b1b; color:#fca5a5; }
+  .job-btn.close:hover { background:#b91c1c; }
+  .job-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .job-status-pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 12px; border-radius:20px; font-size:12px; font-weight:500;
+    margin-bottom:14px;
+  }
+  .job-status-pill.active { background:#052e16; color:#86efac; border:1px solid #166534; }
+  .job-status-pill.idle   { background:var(--bg3); color:var(--muted); border:1px solid var(--border); }
+  .job-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .job-table th { font-size:10px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; padding:7px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  .job-table td { padding:8px 10px; border-bottom:1px solid var(--border); }
+  .job-table tr:last-child td { border-bottom:none; }
+  .job-table tr:hover td { background:var(--bg3); }
+  .badge-open   { background:#052e16; color:#86efac; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600; }
+  .badge-done   { background:#1e3a5f; color:#93c5fd; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600; }
+  .pct-loss { color:var(--danger); font-weight:600; }
+  .pct-ok   { color:var(--success); font-weight:600; }
+
 </style>
 </head>
 <body>
@@ -313,11 +396,24 @@
     </div>
   </header>
 
+  <!-- ── Date Bar ── -->
+  <div class="date-bar" id="date-bar">
+    <div class="date-big">
+      <span class="date-num" id="date-day-num">--</span>
+      <div class="date-meta">
+        <span class="date-month-txt" id="date-month">--</span>
+        <span class="date-year-txt" id="date-year">--</span>
+      </div>
+    </div>
+    <div class="date-weekday-txt" id="date-weekday">--</div>
+  </div>
+
   <!-- ── Tabs ── -->
   <div class="tabs">
     <div class="tab active" onclick="showPage('realtime',this)" data-th="Realtime" data-en="Realtime">Realtime</div>
     <div class="tab" onclick="showPage('control',this)" data-th="ควบคุม (Control)" data-en="Control">ควบคุม (Control)</div>
     <div class="tab" onclick="showPage('history',this)" data-th="ข้อมูลสะสม (History)" data-en="History">ข้อมูลสะสม (History)</div>
+    <div class="tab" onclick="showPage('jobs',this)" data-th="งานอบ (Jobs)" data-en="Jobs">งานอบ (Jobs)</div>
   </div>
 
   <!-- ══════════ PAGE: REALTIME ══════════ -->
@@ -395,7 +491,7 @@
 
         <!-- Mini realtime chart -->
         <div class="card">
-          <div class="card-title">กราฟ Realtime (30 จุดล่าสุด)</div>
+          <div class="card-title">กราฟปัจจุบัน</div>
           <canvas id="chart-rt"></canvas>
         </div>
 
@@ -641,6 +737,135 @@
     </div>
   </div>
 
+
+  <!-- ══════════ PAGE: JOBS ══════════ -->
+  <div class="page" id="page-jobs">
+    <div style="display:grid;grid-template-columns:360px 1fr;gap:14px">
+
+      <!-- ── ฟอร์มซ้าย ── -->
+      <div>
+        <!-- สถานะงานปัจจุบัน -->
+        <div id="job-current-status" class="job-status-pill idle">
+          <span id="job-status-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted)"></span>
+          <span id="job-status-text">ไม่มีงานในโรงอบ</span>
+        </div>
+
+        <!-- ฟอร์มเปิดงาน -->
+        <div class="job-form" id="form-open">
+          <div class="job-form-title">เปิดงานอบใหม่</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>ชื่อสินค้า</label>
+              <select id="job-product">
+                <option value="">-- เลือกสินค้า --</option>
+                <option>เนื้อสัตว์แปรรูป</option>
+                <option>สมุนไพร</option>
+                <option>กล้วยตาก</option>
+                <option>มะม่วงอบแห้ง</option>
+                <option value="__other__">อื่นๆ (พิมพ์เอง)</option>
+              </select>
+            </div>
+            <div class="form-group" id="custom-product-group" style="display:none">
+              <label>ชื่อสินค้า (พิมพ์เอง)</label>
+              <input type="text" id="job-product-custom" placeholder="ระบุชื่อสินค้า">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>น้ำหนักเข้า</label>
+              <div style="display:flex;gap:6px">
+                <input type="number" id="job-weight-in" min="0" step="0.1" placeholder="0.0" style="flex:1">
+                <select id="job-unit-in" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text);font-family:var(--font);font-size:13px">
+                  <option>กก.</option>
+                  <option>ถาด</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>โปรแกรมที่ใช้</label>
+              <select id="job-program-sel">
+                <option>FRUIT</option>
+                <option>MEAT</option>
+                <option>HERB</option>
+                <option>CUSTOM</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label>หมายเหตุ (ถ้ามี)</label>
+              <input type="text" id="job-note-open" placeholder="ไม่บังคับ">
+            </div>
+          </div>
+          <button class="job-btn open" onclick="openJob()">เริ่มอบ — บันทึกเวลาเข้า</button>
+        </div>
+
+        <!-- ฟอร์มปิดงาน -->
+        <div class="job-form" id="form-close" style="display:none">
+          <div class="job-form-title">ปิดงานอบ</div>
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px">
+            <div style="color:var(--muted);margin-bottom:4px">งานที่กำลังอบ</div>
+            <div style="font-weight:600;color:var(--text)" id="active-job-info">--</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>น้ำหนักออก</label>
+              <div style="display:flex;gap:6px">
+                <input type="number" id="job-weight-out" min="0" step="0.1" placeholder="0.0" style="flex:1">
+                <select id="job-unit-out" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text);font-family:var(--font);font-size:13px">
+                  <option>กก.</option>
+                  <option>ถาด</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>หมายเหตุ (ถ้ามี)</label>
+              <input type="text" id="job-note-close" placeholder="ไม่บังคับ">
+            </div>
+          </div>
+          <button class="job-btn close" onclick="closeJob()">จบการอบ — บันทึกเวลาออก</button>
+          <button class="job-btn" onclick="cancelActive()" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);margin-top:6px">ยกเลิก (ไม่บันทึก)</button>
+        </div>
+
+        <!-- ผลลัพธ์ -->
+        <div id="job-result-box" style="display:none" class="job-form">
+          <div class="job-form-title">ผลการอบล่าสุด</div>
+          <div id="job-result-content" style="font-size:13px;line-height:2"></div>
+        </div>
+      </div>
+
+      <!-- ── ตารางประวัติขวา ── -->
+      <div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>ประวัติงานอบ</span>
+            <button onclick="loadJobLog()" style="font-size:11px;color:var(--air);background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer;font-family:var(--font)">รีเฟรช</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="job-table">
+              <thead>
+                <tr>
+                  <th>หมายเลข</th>
+                  <th>สินค้า</th>
+                  <th>เข้าอบ</th>
+                  <th>น้ำหนักเข้า</th>
+                  <th>หน่วย</th>
+                  <th>ออก</th>
+                  <th>น้ำหนักออก</th>
+                  <th>เวลาอบ</th>
+                  <th>สูญเสีย</th>
+                  <th>สถานะ</th>
+                </tr>
+              </thead>
+              <tbody id="job-tbody">
+                <tr><td colspan="10" style="color:var(--muted);text-align:center;padding:20px">กดรีเฟรชเพื่อโหลดข้อมูล</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div><!-- /shell -->
 
 <script>
@@ -882,13 +1107,21 @@ function applyLang() {
 //  Font size control
 // ════════════════════════════════════════
 function setFont(size) {
+  const sizeMap = { sm:'12px', md:'14px', lg:'17px' };
   ['sm','md','lg'].forEach(s => {
     document.body.classList.remove('font-'+s);
-    document.getElementById('fs-'+s).classList.remove('active');
+    const btn = document.getElementById('fs-'+s);
+    if (btn) btn.classList.remove('active');
   });
   document.body.classList.add('font-'+size);
-  document.getElementById('fs-'+size).classList.add('active');
+  document.body.style.fontSize = sizeMap[size];
+  const active = document.getElementById('fs-'+size);
+  if (active) active.classList.add('active');
   localStorage.setItem('fontSize', size);
+  // แจ้ง Chart.js resize
+  if (rtChart) rtChart.resize();
+  if (histTempChart) histTempChart.resize();
+  if (histHumiChart) histHumiChart.resize();
 }
 
 (function initPrefs() {
@@ -907,8 +1140,30 @@ function toggleTheme() {
   if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
 })();
 
+const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                   'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const TH_DAYS   = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const EN_MONTHS = ['January','February','March','April','May','June',
+                   'July','August','September','October','November','December'];
+const EN_DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
 function clock() {
-  $('clock').textContent = new Date().toLocaleTimeString('th-TH');
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('th-TH');
+  // อัปเดต date bar
+  const d  = now.getDate();
+  const m  = now.getMonth();
+  const y  = now.getFullYear() + 543; // พ.ศ.
+  const wd = now.getDay();
+  const isEn = currentLang === 'en';
+  const dayEl = $('date-day-num');
+  const moEl  = $('date-month');
+  const yrEl  = $('date-year');
+  const wdEl  = $('date-weekday');
+  if (dayEl) dayEl.textContent = String(d).padStart(2,'0');
+  if (moEl)  moEl.textContent  = isEn ? EN_MONTHS[m] : TH_MONTHS[m];
+  if (yrEl)  yrEl.textContent  = isEn ? String(now.getFullYear()) : String(y);
+  if (wdEl)  wdEl.textContent  = isEn ? EN_DAYS[wd] : 'วัน' + TH_DAYS[wd];
 }
 setInterval(clock, 1000); clock();
 
@@ -1119,7 +1374,15 @@ function initRtChart() {
     options: {
       responsive:true, animation:false, spanGaps:true,
       plugins:{
-        legend:{ labels:{ color:'#5a7090', font:{size:10} } },
+        legend:{
+          labels:{
+            color:'#5a7090', font:{size:10},
+            usePointStyle: true,
+            pointStyle: 'circle',
+            boxWidth: 8,
+            boxHeight: 8,
+          }
+        },
         tooltip:{ mode:'index', intersect:false },
         timeBg:{ zones:[], seasons:[] },
       },
@@ -1952,6 +2215,233 @@ connectMQTT();
 fetchWeather();
 setInterval(fetchWeather, 300000);
 setTimeout(applyLang, 100); // apply after DOM ready // refresh weather ทุก 5 นาที
+
+// ════════════════════════════════════════
+//  ระบบงานอบ (Job Management)
+// ════════════════════════════════════════
+let activeJob = JSON.parse(localStorage.getItem('activeJob') || 'null');
+
+function initJobPage() {
+  updateJobStatus();
+  loadJobLog();
+}
+
+function updateJobStatus() {
+  const statusPill = $('job-current-status');
+  const statusDot  = $('job-status-dot');
+  const statusText = $('job-status-text');
+  const formOpen   = $('form-open');
+  const formClose  = $('form-close');
+
+  if (activeJob) {
+    statusPill.className = 'job-status-pill active';
+    statusDot.style.background  = 'var(--success)';
+    statusDot.style.boxShadow   = '0 0 6px var(--success)';
+    statusText.textContent = 'กำลังอบ: ' + activeJob.product + ' (' + activeJob.jobNo + ')';
+    formOpen.style.display  = 'none';
+    formClose.style.display = 'block';
+    $('active-job-info').textContent =
+      activeJob.jobNo + ' — ' + activeJob.product +
+      ' | เข้าอบ: ' + activeJob.timeIn +
+      ' | น้ำหนักเข้า: ' + activeJob.weightIn + ' ' + (activeJob.unitIn||'กก.');
+  } else {
+    statusPill.className = 'job-status-pill idle';
+    statusDot.style.background = 'var(--muted)';
+    statusDot.style.boxShadow  = 'none';
+    statusText.textContent = 'ไม่มีงานในโรงอบ';
+    formOpen.style.display  = 'block';
+    formClose.style.display = 'none';
+  }
+}
+
+// เลือกสินค้า "อื่นๆ" แสดง input
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'job-product') {
+    $('custom-product-group').style.display =
+      e.target.value === '__other__' ? 'block' : 'none';
+  }
+});
+
+function getProductName() {
+  const sel = $('job-product');
+  if (sel.value === '__other__') return $('job-product-custom').value.trim();
+  return sel.value;
+}
+
+function padJobNo(n) {
+  return 'JOB-' + String(n).padStart(4,'0');
+}
+
+async function getNextJobNo() {
+  // ดึงจาก Sheets เพื่อนับหมายเลขล่าสุด
+  try {
+    const url = CFG.gasWeatherUrl + '?action=get_job_count';
+    const res  = await fetch(url);
+    const json = await res.json();
+    return padJobNo((json.count || 0) + 1);
+  } catch(e) {
+    // fallback: ใช้ timestamp
+    return 'JOB-' + Date.now().toString().slice(-4);
+  }
+}
+
+function formatDateTime(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0');
+}
+
+async function openJob() {
+  const product  = getProductName();
+  const weightIn = parseFloat($('job-weight-in').value);
+  const unitIn   = $('job-unit-in') ? $('job-unit-in').value : 'กก.';
+  const program  = $('job-program-sel').value;
+  const note     = $('job-note-open').value.trim();
+
+  if (!product) { alert('กรุณาเลือกหรือระบุชื่อสินค้า'); return; }
+  if (isNaN(weightIn) || weightIn <= 0) { alert('กรุณากรอกน้ำหนักเข้า'); return; }
+
+  const btn = document.querySelector('.job-btn.open');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const jobNo  = await getNextJobNo();
+  const timeIn = formatDateTime(new Date());
+
+  // บันทึกลง Apps Script
+  try {
+    const payload = {
+      action: 'open_job',
+      jobNo, product, timeIn,
+      weightIn, unitIn, program, note
+    };
+    const res = await fetch(CFG.gasWeatherUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status !== 'ok') throw new Error(json.msg || 'Error');
+
+    // บันทึก active job ไว้ใน localStorage
+    activeJob = { jobNo, product, timeIn, weightIn, unitIn, program, note };
+    localStorage.setItem('activeJob', JSON.stringify(activeJob));
+    updateJobStatus();
+    logCmd('[JOB] เปิดงาน ' + jobNo + ' — ' + product);
+    loadJobLog();
+  } catch(e) {
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'เริ่มอบ — บันทึกเวลาเข้า';
+}
+
+async function closeJob() {
+  const weightOut = parseFloat($('job-weight-out').value);
+  const unitOut   = $('job-unit-out') ? $('job-unit-out').value : 'กก.';
+  const note      = $('job-note-close').value.trim();
+
+  if (isNaN(weightOut) || weightOut <= 0) { alert('กรุณากรอกน้ำหนักออก'); return; }
+  if (!activeJob) { alert('ไม่มีงานที่กำลังอบ'); return; }
+
+  const btn = document.querySelector('.job-btn.close');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const timeOut = formatDateTime(new Date());
+
+  // คำนวณระยะเวลา
+  const msIn    = new Date(activeJob.timeIn.replace(' ','T')).getTime();
+  const msOut   = new Date(timeOut.replace(' ','T')).getTime();
+  const diffMin = Math.round((msOut - msIn) / 60000);
+  const dur     = Math.floor(diffMin/60) + ' ชม. ' + (diffMin%60) + ' นาที';
+  const sameUnit = (activeJob.unitIn||'กก.') === unitOut;
+  const pctLoss  = (sameUnit && activeJob.weightIn > 0)
+    ? (((activeJob.weightIn - weightOut) / activeJob.weightIn) * 100).toFixed(1)
+    : 'N/A';
+
+  try {
+    const payload = {
+      action: 'close_job',
+      jobNo:    activeJob.jobNo,
+      timeOut, weightOut,
+      unitOut, dur, pctLoss, note
+    };
+    const res = await fetch(CFG.gasWeatherUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status !== 'ok') throw new Error(json.msg || 'Error');
+
+    // แสดงผลลัพธ์
+    const rb = $('job-result-box');
+    const rc = $('job-result-content');
+    rb.style.display = 'block';
+    rc.innerHTML =
+      '<b>' + activeJob.jobNo + '</b> — ' + activeJob.product + '<br>' +
+      'น้ำหนักเข้า: <b>' + activeJob.weightIn + ' ' + (activeJob.unitIn||'กก.') + '</b><br>' +
+      'น้ำหนักออก: <b>' + weightOut + ' ' + unitOut + '</b><br>' +
+      'ระยะเวลาอบ: <b>' + dur + '</b><br>' +
+      'น้ำหนักสูญเสีย: <b class="' + (parseFloat(pctLoss) > 30 ? 'pct-loss' : 'pct-ok') + '">' + pctLoss + '%</b>';
+
+    activeJob = null;
+    localStorage.removeItem('activeJob');
+    updateJobStatus();
+    logCmd('[JOB] ปิดงาน — สูญเสีย ' + pctLoss + '%');
+    loadJobLog();
+  } catch(e) {
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'จบการอบ — บันทึกเวลาออก';
+}
+
+function cancelActive() {
+  if (!confirm('ยกเลิกการติดตามงาน? (ข้อมูลใน Sheets ยังคงอยู่)')) return;
+  activeJob = null;
+  localStorage.removeItem('activeJob');
+  updateJobStatus();
+}
+
+async function loadJobLog() {
+  const tbody = $('job-tbody');
+  tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">กำลังโหลด...</td></tr>';
+  try {
+    const res  = await fetch(CFG.gasWeatherUrl + '?action=get_jobs&limit=20');
+    const json = await res.json();
+    if (!json.jobs || json.jobs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">ยังไม่มีข้อมูลงานอบ</td></tr>';
+      return;
+    }
+    tbody.innerHTML = json.jobs.map(j => `
+      <tr>
+        <td style="font-family:var(--mono);color:var(--air)">${j.jobNo||'--'}</td>
+        <td>${j.product||'--'}</td>
+        <td style="font-family:var(--mono);font-size:11px">${j.timeIn||'--'}</td>
+        <td style="font-family:var(--mono)">${j.weightIn || '--'}</td>
+        <td style="color:var(--muted);font-size:11px">${j.unitIn || 'กก.'}</td>
+        <td style="font-family:var(--mono);font-size:11px">${j.timeOut||'--'}</td>
+        <td style="font-family:var(--mono)">${j.weightOut || '--'}</td>
+        <td style="font-size:11px">${j.dur||'--'}</td>
+        <td class="${j.pctLoss && parseFloat(j.pctLoss)>30 ? 'pct-loss' : 'pct-ok'}">${j.pctLoss ? j.pctLoss+'%' : '--'}</td>
+        <td><span class="${j.timeOut ? 'badge-done' : 'badge-open'}">${j.timeOut ? 'เสร็จ' : 'กำลังอบ'}</span></td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="10" style="color:var(--danger);text-align:center;padding:16px">โหลดไม่สำเร็จ: ' + e.message + '</td></tr>';
+  }
+}
+
+// โหลดหน้างานอบเมื่อสลับมา
+const _origShowPage = showPage;
+showPage = function(name, el) {
+  _origShowPage(name, el);
+  if (name === 'jobs') initJobPage();
+};
+
 </script>
 </body>
 </html>
