@@ -688,9 +688,10 @@ function updateUI(d) {
   // prev for delta
   if (state.air !== null) { state.prevAir=state.air; state.prevHumi=state.humi; state.prevProd=state.prod; }
 
-  state.air      = parseFloat(d.temp_air)    || state.air;
-  state.humi     = parseFloat(d.humidity)    || state.humi;
-  state.prod     = parseFloat(d.temp_product)|| state.prod;
+  const _pf = (v, fallback) => { const n = parseFloat(v); return isNaN(n) ? fallback : n; };
+  state.air      = _pf(d.temp_air,     state.air);
+  state.humi     = _pf(d.humidity,     state.humi);
+  state.prod     = _pf(d.temp_product, state.prod);
   state.fan      = d.fan      || state.fan;
   state.prog     = d.program  || state.prog;
   state.sysState = d.sys_state|| state.sysState;
@@ -843,10 +844,11 @@ function initRtChart() {
     },
     options: {
       responsive:true, animation:false,
+      spanGaps: true,
       plugins:{ legend:{ labels:{ color:'#5a7090', font:{size:10} } } },
       scales:{
         x:{ ticks:{ color:'#5a7090', font:{size:9}, maxTicksLimit:8 }, grid:{ color:'#1e2d45' } },
-        y:{ ticks:{ color:'#5a7090', font:{size:9} }, grid:{ color:'#1e2d45' } }
+        y:{ min:20, max:100, ticks:{ color:'#5a7090', font:{size:9} }, grid:{ color:'#1e2d45' } }
       }
     }
   });
@@ -854,16 +856,30 @@ function initRtChart() {
 
 function pushRtChart(d) {
   if (!rtChart) return;
-  const t = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  const t = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const toNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const air  = toNum(d.temp_air);
+  const humi = toNum(d.humidity);
+  const prod = toNum(d.temp_product);
+  if (air === null && humi === null && prod === null) return; // skip empty packet
   rtChart.data.labels.push(t);
-  rtChart.data.datasets[0].data.push(parseFloat(d.temp_air)||null);
-  rtChart.data.datasets[1].data.push(parseFloat(d.humidity)||null);
-  rtChart.data.datasets[2].data.push(parseFloat(d.temp_product)||null);
-  if (rtChart.data.labels.length > 30) {
+  rtChart.data.datasets[0].data.push(air);
+  rtChart.data.datasets[1].data.push(humi);
+  rtChart.data.datasets[2].data.push(prod);
+  if (rtChart.data.labels.length > 60) {
     rtChart.data.labels.shift();
     rtChart.data.datasets.forEach(ds => ds.data.shift());
   }
-  rtChart.update();
+  // auto-scale Y dynamically
+  const allVals = [air, humi, prod].filter(v => v !== null);
+  if (allVals.length) {
+    const allData = rtChart.data.datasets.flatMap(ds => ds.data).filter(v => v !== null);
+    const mn = Math.floor(Math.min(...allData) - 5);
+    const mx = Math.ceil(Math.max(...allData) + 5);
+    rtChart.options.scales.y.min = Math.max(0, mn);
+    rtChart.options.scales.y.max = mx;
+  }
+  rtChart.update('none'); // 'none' = no animation, faster
 }
 
 // ════════════════════════════════════════
@@ -1106,7 +1122,12 @@ function connectMQTT() {
       const msg = payload.toString();
       logMqtt(topic + ': ' + msg.slice(0,80) + (msg.length>80?'...':''));
       const d = JSON.parse(msg);
-      if (topic === 'dryer/data' || topic === 'dryer/status') updateUI(d);
+      if (topic === 'dryer/data') {
+        updateUI(d);
+        logMqtt('data: T=' + d.temp_air + ' H=' + d.humidity + ' P=' + d.temp_product + ' Fan=' + d.fan, '#60a5fa');
+      } else if (topic === 'dryer/status') {
+        updateUI(d);
+      }
       if (topic === 'dryer/alert') handleAlert(d);
     } catch(e) { logMqtt('Parse error: ' + e.message, '#f87171'); }
   });
