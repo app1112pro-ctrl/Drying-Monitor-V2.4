@@ -142,7 +142,7 @@
     border-radius: 10px; padding: 18px 12px; text-align: center;
   }
   .metric-label { font-size: 10px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
-  .metric-val { font-family: var(--mono); font-size: 55px; font-weight: 900; line-height: 1; letter-spacing: -2px; }
+  .metric-val { font-family: var(--mono); font-size: clamp(28px, 3.5vw, 48px); font-weight: 900; line-height: 1; letter-spacing: -1px; }
   .metric-unit { font-size: 10px; color: var(--muted); margin-top: 5px; }
   .metric-delta { font-size: 10px; margin-top: 4px; }
 
@@ -178,17 +178,17 @@
   /* ── Weather sidebar ────────────────────── */
   .main-grid { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
   .weather-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; overflow: hidden; }
-  .weather-big { font-family: var(--mono); font-size: 150px; font-weight: 900; color: var(--air); line-height: 1; margin: 6px 0 2px; letter-spacing:-6px; }
+  .weather-big { font-family: var(--mono); font-size: clamp(48px, 9vw, 110px); font-weight: 900; color: var(--air); line-height: 1; margin: 6px 0 2px; letter-spacing:-3px; }
   .weather-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 5px 0; border-bottom: 1px solid var(--border); }
   .weather-row:last-child { border-bottom: none; }
   .weather-row b { color: var(--text); font-weight: 500; }
   .weather-compare { margin-top: 12px; }
-  .cmp-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .cmp-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: nowrap; }
   .cmp-row:last-child { border-bottom: none; }
-  .cmp-label { color: var(--muted); width: 200px; flex-shrink: 0; font-size:11px; }
+  .cmp-label { color: var(--muted); min-width: 140px; max-width: 160px; flex-shrink: 0; font-size:11px; line-height:1.4; }
   .cmp-bar-wrap { flex: 1; display: flex; gap: 4px; align-items: center; min-width:0; }
   .cmp-bar { height: 5px; border-radius: 3px; }
-  .cmp-val { font-family: var(--mono); font-size: 12px; color: var(--text); text-align: left; }
+  .cmp-val { font-family: var(--mono); font-size: 12px; color: var(--text); text-align: left; white-space: nowrap; min-width: fit-content; }
 
   /* ── Program buttons ────────────────────── */
   .prog-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 14px; }
@@ -285,25 +285,25 @@
   }
   .date-left { display: flex; flex-direction: column; gap: 2px; }
   .date-weekday-big {
-    font-size: 100px; font-weight: 900; color: var(--text);
-    letter-spacing: -.04em; line-height: 1;
+    font-size: clamp(24px, 4.5vw, 56px); font-weight: 900; color: var(--text);
+    letter-spacing: -.03em; line-height: 1;
   }
   .date-line2 {
     display: flex; align-items: baseline; gap: 8px; line-height: 1;
   }
   .date-num {
-    font-family: var(--mono); font-size: 150px; font-weight: 900;
-    color: var(--air); line-height: 1; letter-spacing:-6px;
+    font-family: var(--mono); font-size: clamp(36px, 6vw, 72px); font-weight: 900;
+    color: var(--air); line-height: 1; letter-spacing:-2px;
   }
   .date-month-txt {
-    font-size: 45px; font-weight: 700; color: var(--text); line-height: 1;
+    font-size: clamp(18px, 3vw, 36px); font-weight: 700; color: var(--text); line-height: 1;
   }
   .date-year-txt {
-    font-size: 45px; font-weight: 700; color: var(--muted);
+    font-size: clamp(14px, 2.2vw, 28px); font-weight: 600; color: var(--muted);
     font-family: var(--mono); line-height: 1;
   }
   .date-clock-big {
-    font-family: var(--mono); font-size: 100px; font-weight: 900;
+    font-family: var(--mono); font-size: clamp(24px, 4.5vw, 56px); font-weight: 900;
     color: var(--text); letter-spacing: .02em; line-height: 1;
   }
 
@@ -2013,6 +2013,52 @@ function loadDemoHistory() {
 //  WEATHER — fetch from Sheets CSV
 // ════════════════════════════════════════
 
+
+// โหลดข้อมูลวันนี้จาก Google Sheets เติม RT chart
+async function loadTodayIntoRtChart() {
+  if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
+  try {
+    const res  = await fetch(CFG.sheetsUrl);
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return;
+    const hdrs  = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const iTime = hdrs.indexOf('time');
+    const iAir  = hdrs.indexOf('temp_air');
+    const iHumi = hdrs.indexOf('humidity');
+    const iProd = hdrs.indexOf('temp_product');
+    if (iTime < 0) return;
+    const todayStr = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+    let count = 0;
+    for (let i=1; i<lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
+      const ts   = cols[iTime];
+      if (!ts || !ts.startsWith(todayStr)) continue;
+      const dt   = new Date(ts.replace(' ','T'));
+      if (isNaN(dt)) continue;
+      const slot = slotIndex(dt);
+      const air  = parseFloat(cols[iAir]);
+      const humi = parseFloat(cols[iHumi]);
+      const prod = parseFloat(cols[iProd]);
+      if (!isNaN(air))  rtAllData.air[slot]  = air;
+      if (!isNaN(humi)) rtAllData.humi[slot] = humi;
+      if (!isNaN(prod)) rtAllData.prod[slot] = prod;
+      count++;
+    }
+    if (count > 0 && rtChart) {
+      rtChart.data.datasets[0].data = [...rtAllData.air];
+      rtChart.data.datasets[1].data = [...rtAllData.humi];
+      rtChart.data.datasets[2].data = [...rtAllData.prod];
+      rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
+      rtChart._zonesSet = true;
+      rtChart.update('none');
+      logMqtt('[Today] โหลด ' + count + ' จุดจาก Sheets', '#34d399');
+    }
+  } catch(e) {
+    logMqtt('[Today] โหลดไม่สำเร็จ: ' + e.message, '#f87171');
+  }
+}
+
 async function fetchWeatherDirect() {
   const LAT = 12.510719532073317;
   const LON = 102.14703938773218;
@@ -2245,7 +2291,9 @@ initHistCharts();
 connectMQTT();
 fetchWeather();
 setInterval(fetchWeather, 300000);
-setTimeout(applyLang, 100); // apply after DOM ready // refresh weather ทุก 5 นาที
+setTimeout(applyLang, 100); // apply after DOM ready
+// โหลดข้อมูลวันนี้จาก Sheets มาเติม RT chart slots
+setTimeout(loadTodayIntoRtChart, 2000); // refresh weather ทุก 5 นาที
 
 // ════════════════════════════════════════
 //  ระบบงานอบ (Job Management)
