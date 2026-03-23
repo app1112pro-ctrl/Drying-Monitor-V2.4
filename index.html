@@ -433,11 +433,7 @@
         <button id="fs-md" onclick="setFont('md')" class="active" title="ตัวอักษรปกติ">A</button>
         <button id="fs-lg" onclick="setFont('lg')" title="ตัวอักษรใหญ่">A+</button>
       </div>
-      <!-- Language toggle -->
-      <div style="display:flex;gap:3px">
-        <button class="lang-btn active" id="lang-th" onclick="setLang('th')">ไทย</button>
-        <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
-      </div>
+
       <!-- Dark/Light toggle -->
       <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:12px;color:var(--muted)">☀</span>
@@ -446,7 +442,7 @@
       </div>
       <div class="conn-pill">
         <div class="conn-dot" id="conn-dot"></div>
-        <span id="conn-label" data-th="กำลังเชื่อมต่อ..." data-en="Connecting...">กำลังเชื่อมต่อ...</span>
+        <span id="conn-label">กำลังเชื่อมต่อ...</span>
       </div>
       <div style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="clock">--:--:--</div>
     </div>
@@ -467,23 +463,23 @@
 
   <!-- ── WiFi Signal ── -->
   <div class="wifi-bar">
-    <span class="wifi-label" data-th="สัญญาณ WiFi" data-en="WiFi Signal">สัญญาณ WiFi</span>
+    <span class="wifi-label">สัญญาณ WiFi</span>
     <div class="wifi-signal" id="wifi-signal-bars">
       <div class="wifi-bar-item" style="height:5px"  id="ws1"></div>
       <div class="wifi-bar-item" style="height:8px"  id="ws2"></div>
       <div class="wifi-bar-item" style="height:11px" id="ws3"></div>
       <div class="wifi-bar-item" style="height:14px" id="ws4"></div>
     </div>
-    <span class="wifi-text" id="wifi-text" data-th="ไม่มีสัญญาณ" data-en="No Signal">--</span>
+    <span class="wifi-text" id="wifi-text">--</span>
     <span style="font-size:10px;color:var(--muted);font-family:var(--mono)" id="wifi-rssi"></span>
   </div>
 
   <!-- ── Tabs ── -->
   <div class="tabs">
-    <div class="tab active" onclick="showPage('realtime',this)" data-th="Realtime" data-en="Realtime">Realtime</div>
-    <div class="tab" onclick="showPage('control',this)" data-th="ควบคุม (Control)" data-en="Control">ควบคุม (Control)</div>
-    <div class="tab" onclick="showPage('history',this)" data-th="ข้อมูลสะสม (History)" data-en="History">ข้อมูลสะสม (History)</div>
-    <div class="tab" onclick="showPage('jobs',this)" data-th="งานอบ (Jobs)" data-en="Jobs">งานอบ (Jobs)</div>
+    <div class="tab active" onclick="showPage('realtime',this)">Realtime</div>
+    <div class="tab" onclick="showPage('control',this)">ควบคุม (Control)</div>
+    <div class="tab" onclick="showPage('history',this)">ข้อมูลสะสม (History)</div>
+    <div class="tab" onclick="showPage('jobs',this)">งานอบ (Jobs)</div>
   </div>
 
   <!-- ══════════ PAGE: REALTIME ══════════ -->
@@ -618,7 +614,7 @@
           <div class="weather-compare">
             <div class="card-title" style="margin:12px 0 8px" data-i18n="compare-title">เปรียบเทียบข้อมูล</div>
             <div class="cmp-row">
-              <span class="cmp-label" data-th="Temp.โรงอบ VS Temp.พื้นที่ (°C)" data-en="Temp.Dryer VS Temp.Area (°C)">Temp.โรงอบ VS Temp.พื้นที่ (°C</span>
+              <span class="cmp-label">Temp.โรงอบ VS Temp.พื้นที่ (°C</span>
               <div class="cmp-bar-wrap">
                 <div class="cmp-bar" id="cmp-air-bar" style="background:var(--air);width:0%"></div>
                 <div class="cmp-bar" id="cmp-w-bar" style="background:#64748b;width:0%"></div>
@@ -626,7 +622,7 @@
               <span class="cmp-val" id="cmp-temp-val">--</span>
             </div>
             <div class="cmp-row">
-              <span class="cmp-label" data-th="ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)" data-en="Humidity Dryer VS Area (%RH)">ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)</span>
+              <span class="cmp-label">ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)</span>
               <div class="cmp-bar-wrap">
                 <div class="cmp-bar" id="cmp-humi-in" style="background:var(--humi);width:0%"></div>
                 <div class="cmp-bar" id="cmp-humi-out" style="background:#64748b;width:0%"></div>
@@ -791,6 +787,18 @@
         <canvas id="chart-hist-temp"></canvas>
       </div>
       <div style="display:none"><canvas id="chart-hist-humi"></canvas></div>
+    </div>
+
+    <!-- WiFi + Rain charts -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="hist-chart-wrap">
+        <div class="card-title">สัญญาณ WiFi (ระดับ)</div>
+        <canvas id="chart-hist-wifi" style="max-height:140px"></canvas>
+      </div>
+      <div class="hist-chart-wrap">
+        <div class="card-title">เซนเซอร์ฝน (Rain Sensor)</div>
+        <canvas id="chart-hist-rain" style="max-height:140px"></canvas>
+      </div>
     </div>
 
     <!-- Summary stats -->
@@ -1046,176 +1054,11 @@ function logCmd(msg) {
 // ════════════════════════════════════════
 //  i18n — ภาษา
 // ════════════════════════════════════════
-const I18N = {
-  th: {
-    'realtime-tab':     'Realtime',
-    'control-tab':      'ควบคุม (Control)',
-    'history-tab':      'ข้อมูลสะสม (History)',
-    'v-air-label':      'อุณหภูมิอากาศ',
-    'v-humi-label':     'ความชื้น',
-    'v-prod-label':     'อุณหภูมิผลิตภัณฑ์',
-    'v-fan-label':      'สถานะพัดลม',
-    'v-prog-label':     'โปรแกรม',
-    'v-state-label':    'โหมดระบบ',
-    'v-fanmin-label':   'พัดลม/วันนี้',
-    'weather-title':    'สภาพอากาศในพื้นที่',
-    'weather-humi':     'ความชื้นสัมพัทธ์',
-    'weather-feels':    'รู้สึกเหมือน',
-    'weather-wind':     'ลม',
-    'weather-rain':     'ฝน (ชม.นี้)',
-    'weather-cloud':    'เมฆปกคลุม',
-    'weather-src':      'แหล่งข้อมูล',
-    'weather-view':     'ดูข้อมูลพื้นที่',
-    'weather-map':      'เปิดแผนที่',
-    'compare-title':    'เปรียบเทียบข้อมูล',
-    'cmp-temp':         'Temp.โรงอบ VS Temp.พื้นที่ (°C)',
-    'cmp-humi':         'ความชื้นโรงอบ VS ความชื้นพื้นที่ (%RH)',
-    'last-title':       'ข้อมูลล่าสุด',
-    'prog-title':       'เลือกโปรแกรมอบแห้ง',
-    'fan-title':        'ควบคุมพัดลม',
-    'fan-auto-btn':     'AUTO (อัตโนมัติ)',
-    'fan-on-btn':       'ON (บังคับเปิด)',
-    'fan-off-btn':      'OFF (บังคับปิด)',
-    'night-title':      'ตั้งเวลา Night Guard',
-    'night-start-lbl':  'เวลาเริ่ม (HH:MM)',
-    'night-end-lbl':    'เวลาสิ้นสุด (HH:MM)',
-    'night-send-btn':   'ส่งเวลา Night Guard',
-    'alert-title':      'จัดการการแจ้งเตือน',
-    'rain-clear-btn':   'ยกเลิก Rain Mode',
-    'stall-ack-btn':    'รับทราบ Fan Stall',
-    'query-btn':        'Query Status',
-    'cs-prog-lbl':      'โปรแกรม',
-    'cs-fan-lbl':       'พัดลม',
-    'cs-state-lbl':     'โหมด',
-    'cs-humi-lbl':      'ความชื้นเป้าหมาย',
-    'cs-temp-lbl':      'อุณหภูมิสูงสุด',
-    'hist-range-lbl':   'ช่วงเวลา:',
-    'hist-24h':         '24 ชั่วโมง',
-    'hist-3d':          '3 วัน',
-    'hist-7d':          '7 วัน',
-    'hist-30d':         '30 วัน',
-    'hist-6m':          '6 เดือน',
-    'hist-12m':         '12 เดือน',
-    'hist-refresh':     'รีเฟรช',
-    'chart-temp-title': 'อุณหภูมิ (°C)',
-    'chart-humi-title': 'ความชื้น (%RH)',
-    'raw-title':        'ข้อมูลดิบ (20 แถวล่าสุด)',
-    'col-time':         'เวลา',
-    'col-air':          'T.อากาศ',
-    'col-humi':         'ความชื้น',
-    'col-prod':         'T.ผลิตภัณฑ์',
-    'col-fan':          'พัดลม',
-    'col-prog':         'โปรแกรม',
-    'col-mode':         'โหมด',
-    'stat-avg-temp-lbl':'อุณหภูมิเฉลี่ย',
-    'stat-avg-humi-lbl':'ความชื้นเฉลี่ย',
-    'stat-fan-lbl':     'พัดลมทำงาน',
-    'mqtt-log-title':   'MQTT Log',
-    'cmd-log-title':    'Command Log',
-    'conn-ok':          'เชื่อมต่อแล้ว',
-    'conn-ing':         'กำลังเชื่อมต่อ...',
-    'conn-err':         'เชื่อมต่อไม่ได้',
-    'curr-status':      'สถานะปัจจุบัน',
-  },
-  en: {
-    'realtime-tab':     'Realtime',
-    'control-tab':      'Control',
-    'history-tab':      'History',
-    'v-air-label':      'Air Temp.',
-    'v-humi-label':     'Humidity',
-    'v-prod-label':     'Product Temp.',
-    'v-fan-label':      'Fan Status',
-    'v-prog-label':     'Program',
-    'v-state-label':    'System Mode',
-    'v-fanmin-label':   'Fan/Today',
-    'weather-title':    'Local Weather',
-    'weather-humi':     'Relative Humidity',
-    'weather-feels':    'Feels Like',
-    'weather-wind':     'Wind',
-    'weather-rain':     'Rain (this hr)',
-    'weather-cloud':    'Cloud Cover',
-    'weather-src':      'Source',
-    'weather-view':     'View Area Data',
-    'weather-map':      'Open Map',
-    'compare-title':    'Data Comparison',
-    'cmp-temp':         'Temp.Dryer VS Temp.Area (°C)',
-    'cmp-humi':         'Humidity Dryer VS Area (%RH)',
-    'last-title':       'Latest Data',
-    'prog-title':       'Select Drying Program',
-    'fan-title':        'Fan Control',
-    'fan-auto-btn':     'AUTO',
-    'fan-on-btn':       'Force ON',
-    'fan-off-btn':      'Force OFF',
-    'night-title':      'Night Guard Schedule',
-    'night-start-lbl':  'Start Time (HH:MM)',
-    'night-end-lbl':    'End Time (HH:MM)',
-    'night-send-btn':   'Send Night Guard',
-    'alert-title':      'Alert Management',
-    'rain-clear-btn':   'Clear Rain Mode',
-    'stall-ack-btn':    'Ack Fan Stall',
-    'query-btn':        'Query Status',
-    'cs-prog-lbl':      'Program',
-    'cs-fan-lbl':       'Fan',
-    'cs-state-lbl':     'Mode',
-    'cs-humi-lbl':      'Target Humidity',
-    'cs-temp-lbl':      'Max Temp',
-    'hist-range-lbl':   'Range:',
-    'hist-24h':         '24 Hours',
-    'hist-3d':          '3 Days',
-    'hist-7d':          '7 Days',
-    'hist-30d':         '30 Days',
-    'hist-6m':          '6 Months',
-    'hist-12m':         '12 Months',
-    'hist-refresh':     'Refresh',
-    'chart-temp-title': 'Temperature (°C)',
-    'chart-humi-title': 'Humidity (%RH)',
-    'raw-title':        'Raw Data (Last 20)',
-    'col-time':         'Time',
-    'col-air':          'Air T.',
-    'col-humi':         'Humidity',
-    'col-prod':         'Product T.',
-    'col-fan':          'Fan',
-    'col-prog':         'Program',
-    'col-mode':         'Mode',
-    'stat-avg-temp-lbl':'Avg. Temperature',
-    'stat-avg-humi-lbl':'Avg. Humidity',
-    'stat-fan-lbl':     'Fan Runtime',
-    'mqtt-log-title':   'MQTT Log',
-    'cmd-log-title':    'Command Log',
-    'conn-ok':          'Connected',
-    'conn-ing':         'Connecting...',
-    'conn-err':         'Disconnected',
-    'curr-status':      'Current Status',
-  }
-};
+// ภาษาไทยอย่างเดียว
+const currentLang = 'th';
+function t(key) { return key; }
 
-let currentLang = localStorage.getItem('lang') || 'th';
 
-function setLang(lang) {
-  currentLang = lang;
-  localStorage.setItem('lang', lang);
-  document.getElementById('lang-th').classList.toggle('active', lang==='th');
-  document.getElementById('lang-en').classList.toggle('active', lang==='en');
-  applyLang();
-}
-
-function t(key) {
-  return (I18N[currentLang] && I18N[currentLang][key]) || I18N['th'][key] || key;
-}
-
-function applyLang() {
-  // แปล elements ที่มี data-i18n attribute
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    el.textContent = t(key);
-  });
-  // แปล tabs
-  document.querySelectorAll('[data-th]').forEach(el => {
-    el.textContent = currentLang==='th'
-      ? el.getAttribute('data-th')
-      : el.getAttribute('data-en');
-  });
-}
 
 // ════════════════════════════════════════
 //  Font size control
@@ -1239,8 +1082,6 @@ function setFont(size) {
 }
 
 (function initPrefs() {
-  const savedLang = localStorage.getItem('lang') || 'th';
-  setLang(savedLang);
   // setFont รันหลัง init เพื่อป้องกัน rtChart before-init error
   const savedFont = localStorage.getItem('fontSize') || 'md';
   ['sm','md','lg'].forEach(s => {
@@ -1267,15 +1108,10 @@ function toggleTheme() {
 const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
                    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 const TH_DAYS   = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
-const EN_MONTHS = ['January','February','March','April','May','June',
-                   'July','August','September','October','November','December'];
-const EN_DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-
 
 function updateWifi(level) {
   // level: 0=ไม่มี 1=อ่อน 2=ปานกลาง 3=ดี (จาก wifi field ใน MQTT)
   const bars = ['ws1','ws2','ws3','ws4'];
-  const isEn = currentLang === 'en';
   const configs = {
     0: { active:0, cls:'weak', th:'ไม่มีสัญญาณ',   en:'No Signal'  },
     1: { active:1, cls:'weak', th:'อ่อน',            en:'Weak'       },
@@ -1293,9 +1129,8 @@ function updateWifi(level) {
   const txt = $('wifi-text');
   if (txt) {
     txt.className = 'wifi-text ' + cfg.cls;
-    txt.textContent = isEn ? cfg.en : cfg.th;
-    txt.setAttribute('data-th', cfg.th);
-    txt.setAttribute('data-en', cfg.en);
+    txt.textContent = cfg.th;
+
   }
 }
 
@@ -1384,15 +1219,14 @@ function clock() {
   const m  = now.getMonth();
   const y  = now.getFullYear() + 543; // พ.ศ.
   const wd = now.getDay();
-  const isEn = currentLang === 'en';
   const dayEl = $('date-day-num');
   const moEl  = $('date-month');
   const yrEl  = $('date-year');
   const wdEl  = $('date-weekday');
   if (dayEl) dayEl.textContent = String(d).padStart(2,'0');
-  if (moEl)  moEl.textContent  = isEn ? EN_MONTHS[m] : TH_MONTHS[m];
-  if (yrEl)  yrEl.textContent  = isEn ? String(now.getFullYear()) : String(y);
-  if (wdEl)  wdEl.textContent  = isEn ? EN_DAYS[wd] : 'วัน' + TH_DAYS[wd];
+  if (moEl)  moEl.textContent  = TH_MONTHS[m];
+  if (yrEl)  yrEl.textContent  = String(y);
+  if (wdEl)  wdEl.textContent  = 'วัน' + TH_DAYS[wd];
 }
 setInterval(clock, 1000); clock();
 
@@ -1717,7 +1551,7 @@ function pushRtChart(d) {
 // ════════════════════════════════════════
 //  HISTORY CHARTS
 // ════════════════════════════════════════
-let histTempChart, histHumiChart;
+let histTempChart, histHumiChart, histWifiChart, histRainChart;
 
 // ── Chart background plugin ─────────────────────────────
 const timeBgPlugin = {
@@ -1901,6 +1735,47 @@ function initHistCharts() {
     }
   });
 
+  // กราฟ WiFi Signal
+  histWifiChart = new Chart($('chart-hist-wifi').getContext('2d'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{
+      label:'WiFi Level', data:[], backgroundColor:'#60a5fa88',
+      borderColor:'#60a5fa', borderWidth:1,
+    }]},
+    options:{
+      responsive:true, animation:false,
+      plugins:{ legend:{display:false}, timeBg:{zones:[],seasons:[]} },
+      scales:{
+        x:{ ticks:{ color:'#5a7090', font:{size:8}, maxRotation:45, autoSkip:true, maxTicksLimit:12 }, grid:{color:'rgba(30,45,69,0.2)'} },
+        y:{ min:0, max:4, ticks:{ color:'#5a7090', font:{size:9}, stepSize:1,
+              callback: v => ['ไม่มี','อ่อน','ปานกลาง','ดี','ดีมาก'][v]||v },
+            grid:{color:'rgba(30,45,69,0.2)'} }
+      }
+    }
+  });
+
+  // กราฟฝน (rain_sensor: true/false → 1/0)
+  histRainChart = new Chart($('chart-hist-rain').getContext('2d'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{
+      label:'ฝนตก', data:[], backgroundColor: ctx => {
+        const v = ctx.dataset.data[ctx.dataIndex];
+        return v === 1 ? '#22d3ee88' : '#1e2d4540';
+      },
+      borderColor:'#22d3ee', borderWidth:1,
+    }]},
+    options:{
+      responsive:true, animation:false,
+      plugins:{ legend:{display:false}, timeBg:{zones:[],seasons:[]} },
+      scales:{
+        x:{ ticks:{ color:'#5a7090', font:{size:8}, maxRotation:45, autoSkip:true, maxTicksLimit:12 }, grid:{color:'rgba(30,45,69,0.2)'} },
+        y:{ min:0, max:1, ticks:{ color:'#5a7090', font:{size:9}, stepSize:1,
+              callback: v => v===1 ? 'ฝนตก' : 'ไม่ตก' },
+            grid:{color:'rgba(30,45,69,0.2)'} }
+      }
+    }
+  });
+
   // กราฟความชื้น: เก็บไว้แต่ซ่อน (ใช้ histHumiChart สำหรับ API compat)
   histHumiChart = new Chart($('chart-hist-humi').getContext('2d'), {
     type:'line',
@@ -1965,6 +1840,8 @@ function parseAndRenderHistory(csv) {
       air:   parseFloat(iAir>=0  ? cols[iAir]  : cols[1]) || null,
       humi:  parseFloat(iHumi>=0 ? cols[iHumi] : cols[2]) || null,
       prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
+      wifi:  parseFloat(cols[hdrs.indexOf('wifi')] >= 0 ? cols[hdrs.indexOf('wifi')] : '0') || 0,
+      rain:  (cols[hdrs.indexOf('rain_sensor')]||'false').toLowerCase()==='true' ? 1 : 0,
       prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
       fan:   (iFan>=0  ? cols[iFan]  : cols[4] || '').toUpperCase(),
       prog:  iProg>=0  ? cols[iProg]  : cols[5] || '',
@@ -2186,6 +2063,22 @@ function renderHistCharts(rows) {
   histHumiChart.data.labels = labels;
   histHumiChart.data.datasets[0].data = humiData;
   histHumiChart.update();
+
+  // อัปเดต WiFi + Rain charts
+  const wifiData = rows.map(r => r.wifi || 0);
+  const rainData = rows.map(r => r.rain || 0);
+  if (histWifiChart) {
+    histWifiChart.data.labels = labels;
+    histWifiChart.data.datasets[0].data = wifiData;
+    histWifiChart.options.plugins.timeBg.zones = (rangeH<=168) ? makeTimeZones(labels, rangeH) : (rangeH>720 ? makeSeasonZones(labels).zones||[] : []);
+    histWifiChart.update();
+  }
+  if (histRainChart) {
+    histRainChart.data.labels = labels;
+    histRainChart.data.datasets[0].data = rainData;
+    histRainChart.options.plugins.timeBg.zones = (rangeH<=168) ? makeTimeZones(labels, rangeH) : [];
+    histRainChart.update();
+  }
 
   // วาด label จุดสุดท้าย
   setTimeout(() => {
@@ -2511,19 +2404,18 @@ async function fetchWeather() {
 // โหลดข้อมูล RT ตามวันที่เลือก
 async function loadRtByDate() {
   const picker = document.getElementById('rt-date-picker');
-  if (!picker || !picker.value) return;
+  if (!picker || !picker.value) { alert('กรุณาเลือกวันที่'); return; }
   const dateStr = picker.value; // YYYY-MM-DD
   const today   = new Date().toISOString().slice(0,10);
   const isToday = dateStr === today;
 
-  // รีเซ็ต chart
-  initRtChart();
-  const titleEl = document.getElementById('rt-chart-title');
+  const titleEl  = document.getElementById('rt-chart-title');
   const todayBtn = document.getElementById('btn-rt-today');
 
   if (isToday) {
     if (titleEl) titleEl.textContent = 'ปัจจุบัน';
     if (todayBtn) { todayBtn.style.color = 'var(--air)'; todayBtn.style.borderColor = 'var(--air)'; }
+    initRtChart();
     await loadTodayIntoRtChart();
     return;
   }
@@ -2532,9 +2424,10 @@ async function loadRtByDate() {
   if (todayBtn) { todayBtn.style.color = 'var(--muted)'; todayBtn.style.borderColor = 'var(--border)'; }
 
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) {
-    logMqtt('[Date] ยังไม่ตั้งค่า sheetsUrl', '#f87171');
+    alert('ยังไม่ตั้งค่า sheetsUrl ใน CFG');
     return;
   }
+  logMqtt('[Date] กำลังโหลด ' + dateStr + '...', '#60a5fa');
 
   logMqtt('[Date] กำลังโหลดข้อมูล ' + dateStr + '...', '#60a5fa');
   try {
@@ -2970,7 +2863,6 @@ initHistCharts();
 connectMQTT();
 fetchWeather();
 setInterval(fetchWeather, 300000);
-setTimeout(applyLang, 100); // apply after DOM ready
 // โหลดข้อมูลวันนี้จาก Sheets มาเติม RT chart slots
 setTimeout(loadTodayIntoRtChart, 2000); // refresh weather ทุก 5 นาที
 
