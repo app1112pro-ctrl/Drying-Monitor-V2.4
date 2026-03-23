@@ -389,6 +389,27 @@
   }
   .date-picker-bar button:hover { color: var(--text); border-color: var(--air); }
   .date-picker-bar button.active { color: var(--air); border-color: var(--air); background: var(--bg2); }
+
+  .wifi-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wifi-label { font-size: 11px; color: var(--muted); }
+  .wifi-signal {
+    display: flex; align-items: flex-end; gap: 2px; height: 16px;
+  }
+  .wifi-bar-item {
+    width: 5px; border-radius: 2px;
+    background: var(--border);
+  }
+  .wifi-bar-item.active { background: var(--success); }
+  .wifi-bar-item.warn   { background: var(--prod); }
+  .wifi-bar-item.weak   { background: var(--danger); }
+  .wifi-text { font-size: 11px; font-weight: 600; }
+  .wifi-text.good { color: var(--success); }
+  .wifi-text.mid  { color: var(--prod); }
+  .wifi-text.weak { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -442,6 +463,19 @@
       </div>
     </div>
     <span class="date-clock-big" id="clock-big">--:--:--</span>
+  </div>
+
+  <!-- ── WiFi Signal ── -->
+  <div class="wifi-bar">
+    <span class="wifi-label" data-th="สัญญาณ WiFi" data-en="WiFi Signal">สัญญาณ WiFi</span>
+    <div class="wifi-signal" id="wifi-signal-bars">
+      <div class="wifi-bar-item" style="height:5px"  id="ws1"></div>
+      <div class="wifi-bar-item" style="height:8px"  id="ws2"></div>
+      <div class="wifi-bar-item" style="height:11px" id="ws3"></div>
+      <div class="wifi-bar-item" style="height:14px" id="ws4"></div>
+    </div>
+    <span class="wifi-text" id="wifi-text" data-th="ไม่มีสัญญาณ" data-en="No Signal">--</span>
+    <span style="font-size:10px;color:var(--muted);font-family:var(--mono)" id="wifi-rssi"></span>
   </div>
 
   <!-- ── Tabs ── -->
@@ -1240,6 +1274,76 @@ const EN_MONTHS = ['January','February','March','April','May','June',
                    'July','August','September','October','November','December'];
 const EN_DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
+
+function updateWifi(level) {
+  // level: 0=ไม่มี 1=อ่อน 2=ปานกลาง 3=ดี (จาก wifi field ใน MQTT)
+  const bars = ['ws1','ws2','ws3','ws4'];
+  const isEn = currentLang === 'en';
+  const configs = {
+    0: { active:0, cls:'weak', th:'ไม่มีสัญญาณ',   en:'No Signal'  },
+    1: { active:1, cls:'weak', th:'อ่อน',            en:'Weak'       },
+    2: { active:2, cls:'warn', th:'ปานกลาง',         en:'Fair'       },
+    3: { active:3, cls:'good', th:'ดี',              en:'Good'       },
+    4: { active:4, cls:'good', th:'ดีมาก',           en:'Excellent'  },
+  };
+  const cfg = configs[Math.min(level||0, 4)] || configs[0];
+  bars.forEach((id, i) => {
+    const el = $(id);
+    if (!el) return;
+    el.className = 'wifi-bar-item';
+    if (i < cfg.active) el.classList.add(cfg.cls);
+  });
+  const txt = $('wifi-text');
+  if (txt) {
+    txt.className = 'wifi-text ' + cfg.cls;
+    txt.textContent = isEn ? cfg.en : cfg.th;
+    txt.setAttribute('data-th', cfg.th);
+    txt.setAttribute('data-en', cfg.en);
+  }
+}
+
+function drawRtEndLabels() {
+  if (!rtChart) return;
+  const datasets = [
+    { data: rtAllData.air,  color: '#60a5fa', axis: 'yT' },
+    { data: rtAllData.humi, color: '#34d399', axis: 'yH' },
+    { data: rtAllData.prod, color: '#fb923c', axis: 'yT' },
+  ];
+  const ctx = rtChart.ctx;
+  const ca  = rtChart.chartArea;
+  if (!ca) return;
+  ctx.save();
+  datasets.forEach(ds => {
+    try {
+      const lastIdx = lastFilledIdx(ds.data);
+      if (lastIdx < 0) return;
+      const val    = ds.data[lastIdx];
+      if (val === null) return;
+      const xScale = rtChart.scales && rtChart.scales.x;
+      const yScale = rtChart.scales && rtChart.scales[ds.axis];
+      if (!xScale || !yScale) return;
+      const x = xScale.getPixelForValue(lastIdx);
+      const y = yScale.getPixelForValue(val);
+      // วงกลม
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI*2);
+      ctx.fillStyle = ds.color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // ตัวเลข
+      ctx.fillStyle = ds.color;
+      ctx.font = 'bold 11px IBM Plex Mono, monospace';
+      ctx.textAlign = x > ca.right - 50 ? 'right' : 'left';
+      ctx.textBaseline = 'middle';
+      const offsetX = x > ca.right - 50 ? -8 : 8;
+      ctx.fillText(val.toFixed(1), x + offsetX, y - 6);
+    } catch(e) {}
+  });
+  ctx.restore();
+}
+
 function clock() {
   const now = new Date();
   $('clock').textContent = now.toLocaleTimeString('th-TH');
@@ -1296,6 +1400,12 @@ function updateUI(d) {
 
   $('v-prog').textContent  = state.prog;
   $('v-fanmin').textContent = state.fanMin + ' นาที';
+  // อัปเดต WiFi signal
+  if (d.wifi !== undefined) {
+    updateWifi(parseInt(d.wifi));
+    const rssi = $('wifi-rssi');
+    if (rssi) rssi.textContent = '(level ' + d.wifi + ')';
+  }
 
   // Sys state
   const stateColors = { NORMAL:'var(--success)', NIGHT:'var(--night)', RAIN:'var(--rain)', OVERHEAT:'var(--over)' };
@@ -1565,6 +1675,10 @@ function pushRtChart(d) {
   rtChart.data.datasets[0].data = [...rtAllData.air];
   rtChart.data.datasets[1].data = [...rtAllData.humi];
   rtChart.data.datasets[2].data = [...rtAllData.prod];
+  // วาด end-label หลัง update
+  setTimeout(() => {
+    try { drawRtEndLabels(); } catch(e) {}
+  }, 50);
   // อัปเดต zones เฉพาะเมื่อต้องการ (ไม่ต้องทำทุก push)
   if (!rtChart._zonesSet) {
     rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
@@ -1725,38 +1839,53 @@ function initHistCharts() {
     },
     grid:{ color:'rgba(30,45,69,0.3)' }
   };
-
   const basePlugins = {
-    legend:{ display:false },
+    legend:{ display:true, labels:{ color:'#5a7090', font:{size:10}, usePointStyle:true, pointStyle:'circle', boxWidth:8 } },
     tooltip:{ mode:'index', intersect:false },
     timeBg:{ zones:[], seasons:[] },
   };
 
+  // กราฟอุณหภูมิ: dual Y — T.อากาศ (ซ้าย) + ความชื้น (ขวา) + T.ผลิตภัณฑ์ (ซ้าย)
   histTempChart = new Chart($('chart-hist-temp').getContext('2d'), {
     type:'line',
-    data:{ labels:[], datasets:[{
-      label:'อุณหภูมิ', data:[], borderColor:'#60a5fa', borderWidth:1.5,
-      pointRadius:0, tension:.3, fill:true, backgroundColor:'#60a5fa18', spanGaps:true
-    }]},
+    data:{ labels:[], datasets:[
+      { label:'T.อากาศ', data:[], borderColor:'#60a5fa', borderWidth:1.5,
+        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yT' },
+      { label:'T.ผลิตภัณฑ์', data:[], borderColor:'#fb923c', borderWidth:1.5,
+        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yT',
+        borderDash:[4,2] },
+      { label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5,
+        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yH' },
+    ]},
     options:{
-      responsive:true, animation:false,
+      responsive:true, animation:false, spanGaps:true,
+      interaction:{ mode:'index', intersect:false },
       plugins: basePlugins,
       scales:{
         x: xScaleCfg,
-        y:{ min:15, max:75, ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 }, grid:{ color:'rgba(30,45,69,0.3)' } }
+        yT:{ type:'linear', position:'left',  min:15, max:75,
+             ticks:{ color:'#60a5fa', font:{size:9}, stepSize:10 },
+             grid:{ color:'rgba(30,45,69,0.3)' },
+             title:{ display:true, text:'°C', color:'#60a5fa', font:{size:9} } },
+        yH:{ type:'linear', position:'right', min:0,  max:100,
+             ticks:{ color:'#34d399', font:{size:9}, stepSize:10 },
+             grid:{ drawOnChartArea:false },
+             title:{ display:true, text:'%RH', color:'#34d399', font:{size:9} } },
       }
     }
   });
 
+  // กราฟความชื้น: เก็บไว้แต่ซ่อน (ใช้ histHumiChart สำหรับ API compat)
   histHumiChart = new Chart($('chart-hist-humi').getContext('2d'), {
     type:'line',
-    data:{ labels:[], datasets:[{
-      label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5,
-      pointRadius:0, tension:.3, fill:true, backgroundColor:'#34d39918', spanGaps:true
-    }]},
+    data:{ labels:[], datasets:[
+      { label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5,
+        pointRadius:0, pointHoverRadius:4, tension:.3, fill:true,
+        backgroundColor:'#34d39918', spanGaps:true, yAxisID:'y' },
+    ]},
     options:{
-      responsive:true, animation:false,
-      plugins: basePlugins,
+      responsive:true, animation:false, spanGaps:true,
+      plugins:{ legend:{ display:false }, tooltip:{ mode:'index', intersect:false }, timeBg:{ zones:[], seasons:[] } },
       scales:{
         x: xScaleCfg,
         y:{ min:0, max:100, ticks:{ color:'#5a7090', font:{size:9}, stepSize:10 }, grid:{ color:'rgba(30,45,69,0.3)' } }
@@ -1810,6 +1939,7 @@ function parseAndRenderHistory(csv) {
       air:   parseFloat(iAir>=0  ? cols[iAir]  : cols[1]) || null,
       humi:  parseFloat(iHumi>=0 ? cols[iHumi] : cols[2]) || null,
       prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
+      prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
       fan:   (iFan>=0  ? cols[iFan]  : cols[4] || '').toUpperCase(),
       prog:  iProg>=0  ? cols[iProg]  : cols[5] || '',
       state: iState>=0 ? cols[iState] : '',
@@ -1842,6 +1972,7 @@ function renderHistCharts(rows) {
   // 24 ชม. — group เป็นรายชั่วโมง เอา avg ของแต่ละชั่วโมง
   let labels, airData, humiData;
   const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null;
+  let prodData = [];
 
   if (rangeH <= 24) {
     // 24 ชม. — bucket รายชั่วโมง 00:00-23:00
@@ -1852,11 +1983,14 @@ function renderHistCharts(rows) {
       if (buckets[hkey]) {
         if (r.air  !== null && !isNaN(r.air))  buckets[hkey].air.push(r.air);
         if (r.humi !== null && !isNaN(r.humi)) buckets[hkey].humi.push(r.humi);
+        if (!buckets[hkey].prod) buckets[hkey].prod=[];
+        if (r.prod !== null && !isNaN(r.prod)) buckets[hkey].prod.push(r.prod);
       }
     });
     labels   = Object.keys(buckets);
     airData  = labels.map(k => avg(buckets[k].air));
     humiData = labels.map(k => avg(buckets[k].humi));
+    prodData = labels.map(k => avg(buckets[k].prod||[]));
 
   } else if (rangeH <= 72) {
     // 3 วัน — bucket ราย 3 ชั่วโมง เช่น 00:00, 03:00, 06:00...
@@ -1909,6 +2043,7 @@ function renderHistCharts(rows) {
     labels   = ord7.map(k => bk7[k].key);
     airData  = ord7.map(k => avg(bk7[k].air));
     humiData = ord7.map(k => avg(bk7[k].humi));
+    prodData = labels.map(() => null); // ไม่มี prod ใน bucket นี้
 
   } else if (rangeH <= 720) {
     // 30 วัน — 30 วัน วันปัจจุบันอยู่ตำแหน่งที่ 25 เฉลี่ยรายวัน
@@ -1936,6 +2071,7 @@ function renderHistCharts(rows) {
     labels   = dayOrder.map(k => dayBuckets[k].key);
     airData  = dayOrder.map(k => avg(dayBuckets[k].air));
     humiData = dayOrder.map(k => avg(dayBuckets[k].humi));
+    prodData = labels.map(() => null); // ไม่มี prod ใน bucket นี้
 
   } else if (rangeH <= 4380) {
     // 6 เดือน — 6 เดือน เฉลี่ยรายเดือน label เป็น "มี.ค." เดือนปัจจุบันอยู่ที่ 5
@@ -1966,6 +2102,7 @@ function renderHistCharts(rows) {
     labels   = mo6Order.map(k => mo6Buckets[k].key);
     airData  = mo6Order.map(k => avg(mo6Buckets[k].air));
     humiData = mo6Order.map(k => avg(mo6Buckets[k].humi));
+    prodData = labels.map(() => null); // ไม่มี prod ใน bucket นี้
 
   } else {
     // 12 เดือน — 12 เดือน เฉลี่ยรายเดือน label เป็น "มี.ค." เดือนปัจจุบันอยู่ที่ 10
@@ -1996,6 +2133,7 @@ function renderHistCharts(rows) {
     labels   = moOrder.map(k => moBuckets[k].key);
     airData  = moOrder.map(k => avg(moBuckets[k].air));
     humiData = moOrder.map(k => avg(moBuckets[k].humi));
+    prodData = labels.map(() => null); // ไม่มี prod ใน bucket นี้
   }
   // อัปเดต pointRadius ให้แสดงจุดสุดท้าย
   const lastNonNull = arr => { for(let i=arr.length-1;i>=0;i--) if(arr[i]!==null) return i; return -1; };
@@ -2015,25 +2153,22 @@ function renderHistCharts(rows) {
 
   histTempChart.data.labels = labels;
   histTempChart.data.datasets[0].data = airData;
-  histTempChart.data.datasets[0].pointRadius = airData.map((_,i) => i===lastNonNull(airData)?5:0);
-  histTempChart.data.datasets[0].pointBackgroundColor = '#60a5fa';
-  histTempChart.data.datasets[0].pointBorderColor = '#fff';
-  histTempChart.data.datasets[0].pointBorderWidth = 1.5;
+  histTempChart.data.datasets[1].data = prodData;
+  histTempChart.data.datasets[2].data = humiData;
   histTempChart.update();
 
   histHumiChart.data.labels = labels;
   histHumiChart.data.datasets[0].data = humiData;
-  histHumiChart.data.datasets[0].pointRadius = humiData.map((_,i) => i===lastNonNull(humiData)?5:0);
-  histHumiChart.data.datasets[0].pointBackgroundColor = '#34d399';
-  histHumiChart.data.datasets[0].pointBorderColor = '#fff';
-  histHumiChart.data.datasets[0].pointBorderWidth = 1.5;
   histHumiChart.update();
 
-  // วาด label ตัวเลขจุดสุดท้าย
+  // วาด label จุดสุดท้าย
   setTimeout(() => {
-    drawHistEndLabel(histTempChart, airData,  '#60a5fa');
-    drawHistEndLabel(histHumiChart, humiData, '#34d399');
-  }, 50);
+    try {
+      drawHistEndLabelDual(histTempChart, airData,  '#60a5fa', 'yT');
+      drawHistEndLabelDual(histTempChart, prodData, '#fb923c', 'yT');
+      drawHistEndLabelDual(histTempChart, humiData, '#34d399', 'yH');
+    } catch(e) {}
+  }, 80);
 }
 
 function drawHistEndLabel(chart, data, color) {
@@ -2104,6 +2239,36 @@ function loadDemoHistory() {
 
 
 // โหลดข้อมูลวันนี้จาก Google Sheets เติม RT chart
+function drawHistEndLabelDual(chart, data, color, axisId) {
+  try {
+    const lastIdx = data.length-1 - [...data].reverse().findIndex(v=>v!==null);
+    if (lastIdx < 0 || lastIdx >= data.length) return;
+    const val = data[lastIdx];
+    if (val === null || isNaN(val)) return;
+    const ctx    = chart.ctx;
+    const ca     = chart.chartArea;
+    const xScale = chart.scales && chart.scales.x;
+    const yScale = chart.scales && chart.scales[axisId];
+    if (!xScale || !yScale || !ca) return;
+    const x = xScale.getPixelForValue(lastIdx);
+    const y = yScale.getPixelForValue(val);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 11px IBM Plex Mono, monospace';
+    ctx.textAlign = x > ca.right - 60 ? 'right' : 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(val.toFixed(1), x + (x > ca.right-60 ? -8 : 8), y - 8);
+    ctx.restore();
+  } catch(e) {}
+}
+
 async function loadTodayIntoRtChart() {
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
   try {
@@ -2396,8 +2561,9 @@ async function resetRtToday() {
   const todayBtn = document.getElementById('btn-rt-today');
   if (titleEl) titleEl.textContent = 'ปัจจุบัน';
   if (todayBtn) { todayBtn.style.color = 'var(--air)'; todayBtn.style.borderColor = 'var(--air)'; }
-  initRtChart();
-  await loadTodayIntoRtChart();
+  initRtChart(); // reset slots
+  await loadTodayIntoRtChart(); // โหลดวันนี้จาก Sheets
+  logMqtt('[RT] รีเซ็ตกลับวันนี้แล้ว', '#34d399');
 }
 
 // โหลด History ตามช่วงวันที่เลือก
@@ -2468,6 +2634,10 @@ function resetHistRange() {
   const toEl   = document.getElementById('hist-date-to');
   if (fromEl) fromEl.value = today;
   if (toEl)   toEl.value   = today;
+  histRange = 24; // กลับเป็น 24 ชม.
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const first = document.querySelector('.filter-btn');
+  if (first) first.classList.add('active');
   loadHistory();
 }
 
