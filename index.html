@@ -785,15 +785,12 @@
       กรุณาตั้งค่า Google Sheets URL ในไฟล์ก่อนใช้งาน
     </div>
 
-    <div class="chart-row" style="margin-bottom:14px">
+    <div class="chart-row" style="margin-bottom:14px;grid-template-columns:1fr">
       <div class="hist-chart-wrap">
         <div class="card-title" data-i18n="chart-temp-title">อุณหภูมิ (°C)</div>
         <canvas id="chart-hist-temp"></canvas>
       </div>
-      <div class="hist-chart-wrap">
-        <div class="card-title" data-i18n="chart-humi-title">ความชื้น (%RH)</div>
-        <canvas id="chart-hist-humi"></canvas>
-      </div>
+      <div style="display:none"><canvas id="chart-hist-humi"></canvas></div>
     </div>
 
     <!-- Summary stats -->
@@ -1305,40 +1302,69 @@ function updateWifi(level) {
 function drawRtEndLabels() {
   if (!rtChart) return;
   const datasets = [
-    { data: rtAllData.air,  color: '#60a5fa', axis: 'yT' },
-    { data: rtAllData.humi, color: '#34d399', axis: 'yH' },
-    { data: rtAllData.prod, color: '#fb923c', axis: 'yT' },
+    { data: rtAllData.air,  color: '#60a5fa', axis: 'yT', label:'T.อากาศ' },
+    { data: rtAllData.humi, color: '#34d399', axis: 'yH', label:'ความชื้น' },
+    { data: rtAllData.prod, color: '#fb923c', axis: 'yT', label:'T.ผลิต' },
   ];
   const ctx = rtChart.ctx;
   const ca  = rtChart.chartArea;
   if (!ca) return;
   ctx.save();
+
+  // เก็บ y positions เพื่อตรวจ overlap
+  const placed = []; // [{y, side}]
+  const MIN_GAP = 14; // px ขั้นต่ำระหว่าง label
+
   datasets.forEach(ds => {
     try {
       const lastIdx = lastFilledIdx(ds.data);
       if (lastIdx < 0) return;
       const val    = ds.data[lastIdx];
-      if (val === null) return;
+      if (val === null || isNaN(val)) return;
       const xScale = rtChart.scales && rtChart.scales.x;
       const yScale = rtChart.scales && rtChart.scales[ds.axis];
       if (!xScale || !yScale) return;
-      const x = xScale.getPixelForValue(lastIdx);
-      const y = yScale.getPixelForValue(val);
-      // วงกลม
+      const x  = xScale.getPixelForValue(lastIdx);
+      let   y  = yScale.getPixelForValue(val);
+
+      // ปรับ y ถ้า overlap
+      let adjusted = y;
+      placed.forEach(p => {
+        if (Math.abs(adjusted - p.y) < MIN_GAP) {
+          adjusted = p.y + (adjusted >= p.y ? MIN_GAP : -MIN_GAP);
+        }
+      });
+      placed.push({ y: adjusted });
+
+      // วงกลม ที่ตำแหน่งจริง
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI*2);
+      ctx.arc(x, y, 5, 0, Math.PI*2);
       ctx.fillStyle = ds.color;
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      // ตัวเลข
+
+      // ตัวเลข ที่ตำแหน่งปรับแล้ว
+      const isRight = x > ca.right - 70;
       ctx.fillStyle = ds.color;
       ctx.font = 'bold 11px IBM Plex Mono, monospace';
-      ctx.textAlign = x > ca.right - 50 ? 'right' : 'left';
+      ctx.textAlign = isRight ? 'right' : 'left';
       ctx.textBaseline = 'middle';
-      const offsetX = x > ca.right - 50 ? -8 : 8;
-      ctx.fillText(val.toFixed(1), x + offsetX, y - 6);
+      const offsetX = isRight ? -10 : 10;
+      ctx.fillText(val.toFixed(1), x + offsetX, adjusted);
+
+      // เส้นเชื่อม ถ้า adjusted ≠ y
+      if (Math.abs(adjusted - y) > 2) {
+        ctx.beginPath();
+        ctx.strokeStyle = ds.color + '80';
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([2,2]);
+        ctx.moveTo(x + (isRight ? -6 : 6), y);
+        ctx.lineTo(x + offsetX, adjusted);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     } catch(e) {}
   });
   ctx.restore();
@@ -2542,10 +2568,13 @@ async function loadRtByDate() {
       rtChart.data.datasets[0].data = [...rtAllData.air];
       rtChart.data.datasets[1].data = [...rtAllData.humi];
       rtChart.data.datasets[2].data = [...rtAllData.prod];
-      rtChart.update('none');
+      rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
+      rtChart._zonesSet = true;
+      rtChart.update();
+      setTimeout(() => { try { drawRtEndLabels(); } catch(e) {} }, 100);
       logMqtt('[Date] โหลด ' + count + ' จุด วันที่ ' + dateStr, '#34d399');
     } else {
-      logMqtt('[Date] ไม่มีข้อมูลวันที่ ' + dateStr, '#fbbf24');
+      logMqtt('[Date] ไม่มีข้อมูลวันที่ ' + dateStr + ' ใน Sheets', '#fbbf24');
     }
   } catch(e) {
     logMqtt('[Date] โหลดไม่สำเร็จ: ' + e.message, '#f87171');
@@ -2634,10 +2663,12 @@ function resetHistRange() {
   const toEl   = document.getElementById('hist-date-to');
   if (fromEl) fromEl.value = today;
   if (toEl)   toEl.value   = today;
-  histRange = 24; // กลับเป็น 24 ชม.
+  histRange = 24;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   const first = document.querySelector('.filter-btn');
   if (first) first.classList.add('active');
+  // โหลดข้อมูล 24ชม. ล่าสุดโดยตรง (ไม่ใช้ date filter)
+  $('hist-status').textContent = 'กำลังโหลดข้อมูลปัจจุบัน...';
   loadHistory();
 }
 
