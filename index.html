@@ -822,8 +822,11 @@
 
     <!-- Log table -->
     <div class="card">
-      <div class="card-title" data-i18n="raw-title">ข้อมูลดิบ (20 แถวล่าสุด)</div>
-      <div style="overflow-x:auto">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleRawData()">
+        <span>ข้อมูลดิบ (30 แถวล่าสุด)</span>
+        <span id="raw-toggle-icon" style="font-size:12px;color:var(--muted)">▼ แสดง</span>
+      </div>
+      <div id="raw-data-panel" style="display:none;overflow-x:auto">
         <table class="log-table">
           <thead>
             <tr>
@@ -1823,41 +1826,62 @@ async function loadHistory() {
 function parseAndRenderHistory(csv) {
   const lines = csv.trim().split('\n');
   if (lines.length < 2) { $('hist-status').textContent = 'ไม่มีข้อมูลใน Sheet'; return; }
+
+  // parse header อย่างถูกต้อง
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
-  const idx = name => headers.indexOf(name);
-  const iTime=idx('time'), iAir=idx('temp_air'), iHumi=idx('humidity');
-  const iProd=idx('temp_product'), iFan=idx('fan'), iProg=idx('program');
-  const iState=idx('sys_state'), iMode=idx('fan_mode');
+  const col = name => headers.indexOf(name);
+
+  const iTime  = col('time');
+  const iAir   = col('temp_air');
+  const iHumi  = col('humidity');
+  const iProd  = col('temp_product');
+  const iFan   = col('fan');
+  const iProg  = col('program');
+  const iState = col('sys_state');
+  const iMode  = col('fan_mode');
+  const iWifi  = col('wifi');
+  const iRain  = col('rain_sensor');
+
   const cutoff = Date.now() - histRange * 3600000;
   const rows = [];
+
   for (let i=1; i<lines.length; i++) {
     if (!lines[i].trim()) continue;
     const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
-    const ts = new Date(iTime>=0 ? cols[iTime] : cols[0]);
-    if (isNaN(ts) || ts < cutoff) continue;
+    const tsStr = iTime >= 0 ? cols[iTime] : cols[0];
+    if (!tsStr) continue;
+    // รองรับ format "2026-03-24 15:01" และ "2026-03-24T15:01"
+    const ts = new Date(tsStr.replace(' ', 'T'));
+    if (isNaN(ts) || ts.getTime() < cutoff) continue;
+
     rows.push({
-      ts, time: ts.toLocaleString('th-TH'),
-      air:   parseFloat(iAir>=0  ? cols[iAir]  : cols[1]) || null,
-      humi:  parseFloat(iHumi>=0 ? cols[iHumi] : cols[2]) || null,
-      prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
-      wifi:  parseFloat(cols[hdrs.indexOf('wifi')] >= 0 ? cols[hdrs.indexOf('wifi')] : '0') || 0,
-      rain:  (cols[hdrs.indexOf('rain_sensor')]||'false').toLowerCase()==='true' ? 1 : 0,
-      prod:  parseFloat(iProd>=0 ? cols[iProd] : cols[3]) || null,
-      fan:   (iFan>=0  ? cols[iFan]  : cols[4] || '').toUpperCase(),
-      prog:  iProg>=0  ? cols[iProg]  : cols[5] || '',
-      state: iState>=0 ? cols[iState] : '',
-      mode:  iMode>=0  ? cols[iMode]  : '',
+      ts,
+      time: ts.toLocaleString('th-TH'),
+      air:   iAir  >= 0 ? (parseFloat(cols[iAir])  || null) : null,
+      humi:  iHumi >= 0 ? (parseFloat(cols[iHumi]) || null) : null,
+      prod:  iProd >= 0 ? (parseFloat(cols[iProd]) || null) : null,
+      fan:   iFan  >= 0 ? (cols[iFan]  || '').toUpperCase() : '',
+      prog:  iProg >= 0 ? (cols[iProg] || '') : '',
+      state: iState>= 0 ? (cols[iState]|| '') : '',
+      mode:  iMode >= 0 ? (cols[iMode] || '') : '',
+      wifi:  iWifi >= 0 ? (parseInt(cols[iWifi]) || 0) : 0,
+      rain:  iRain >= 0 ? ((cols[iRain]||'').toLowerCase()==='true' ? 1 : 0) : 0,
     });
   }
+
   if (!rows.length) { $('hist-status').textContent = 'ไม่มีข้อมูลในช่วงเวลาที่เลือก'; return; }
+
   // force update X ticks เมื่อ histRange เปลี่ยน
   [histTempChart, histHumiChart].forEach(ch => {
     if (ch) { ch.options.scales.x.ticks.autoSkip = false; ch.update('none'); }
   });
+
   renderHistCharts(rows);
-  renderHistTable(rows.slice(-10).reverse());
+  renderHistTable(rows.slice(-30).reverse());
   renderHistStats(rows);
+  $('hist-status').textContent = 'โหลดสำเร็จ · ' + new Date().toLocaleTimeString('th-TH');
 }
+
 
 function renderHistCharts(rows) {
   // เลือก format label ตามช่วงเวลา
@@ -2111,6 +2135,16 @@ function drawHistEndLabel(chart, data, color) {
   } catch(e) {}
 }
 
+
+function toggleRawData() {
+  const panel = $('raw-data-panel');
+  const icon  = $('raw-toggle-icon');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  if (icon) icon.textContent = isHidden ? '▲ ซ่อน' : '▼ แสดง';
+}
+
 function renderHistTable(rows) {
   const tbody = $('log-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:16px">ไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>'; return; }
@@ -2148,7 +2182,7 @@ function loadDemoHistory() {
       prog: ['FRUIT','MEAT','HERB'][Math.floor(Math.random()*3)] });
   }
   renderHistCharts(rows);
-  renderHistTable(rows.slice(-10).reverse());
+  renderHistTable(rows.slice(-30).reverse());
   renderHistStats(rows);
 }
 
@@ -2196,56 +2230,40 @@ async function loadTodayIntoRtChart() {
     const lines = text.trim().split('\n');
     if (lines.length < 2) return;
 
-    const hdrs  = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
-    const iTime = hdrs.indexOf('time');
-    const iAir  = hdrs.indexOf('temp_air');
-    const iHumi = hdrs.indexOf('humidity');
-    const iProd = hdrs.indexOf('temp_product');
-    if (iTime < 0) return;
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const col = name => headers.indexOf(name);
+    const iTime = col('time');
+    const iAir  = col('temp_air');
+    const iHumi = col('humidity');
+    const iProd = col('temp_product');
+    if (iTime < 0) { logMqtt('[Today] ไม่พบ column time', '#f87171'); return; }
 
-    // วันนี้ใน local time (ไม่ใช่ UTC)
-    const now = new Date();
-    const todayLocal = now.getFullYear() + '-'
-      + String(now.getMonth()+1).padStart(2,'0') + '-'
-      + String(now.getDate()).padStart(2,'0');
-
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     let count = 0;
-    for (let i=1; i<lines.length; i++) {
-      const raw  = lines[i];
-      if (!raw.trim()) continue;
-      const cols = raw.split(',').map(c => c.replace(/^"|"$/g,'').trim());
-      const ts   = cols[iTime] || '';
-      // รองรับ format "2026-03-23 07:00" หรือ "2026-03-23T07:00"
-      const tsClean = ts.replace('T',' ');
-      if (!tsClean.startsWith(todayLocal)) continue;
 
-      // parse เวลา
-      const timePart = tsClean.slice(11,16); // "07:00"
-      const hh = parseInt(timePart.slice(0,2));
-      const mm = parseInt(timePart.slice(3,5));
-      if (isNaN(hh) || isNaN(mm)) continue;
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
+      const tsStr = cols[iTime];
+      if (!tsStr) continue;
 
-      // slot = ทุก 10 นาที (0-143)
-      const slot = hh * 6 + Math.floor(mm / 10);
-      if (slot < 0 || slot > 143) continue;
+      // รองรับ "2026-03-24 15:01" หรือ "2026-03-24T15:01"
+      const datepart = tsStr.slice(0, 10);
+      if (datepart !== todayStr) continue;
+
+      const dt = new Date(tsStr.replace(' ', 'T'));
+      if (isNaN(dt)) continue;
+
+      const slot = slotIndex(dt); // ทุก 10 นาที = 0-143
+      if (slot < 0 || slot >= 144) continue;
 
       const air  = parseFloat(cols[iAir]);
       const humi = parseFloat(cols[iHumi]);
       const prod = parseFloat(cols[iProd]);
 
-      // ถ้า slot นั้นมีค่าอยู่แล้ว ใช้ค่าเฉลี่ย
-      if (!isNaN(air)) {
-        rtAllData.air[slot]  = rtAllData.air[slot] !== null
-          ? (rtAllData.air[slot] + air) / 2 : air;
-      }
-      if (!isNaN(humi)) {
-        rtAllData.humi[slot] = rtAllData.humi[slot] !== null
-          ? (rtAllData.humi[slot] + humi) / 2 : humi;
-      }
-      if (!isNaN(prod)) {
-        rtAllData.prod[slot] = rtAllData.prod[slot] !== null
-          ? (rtAllData.prod[slot] + prod) / 2 : prod;
-      }
+      if (!isNaN(air)  && air  > 0) rtAllData.air[slot]  = air;
+      if (!isNaN(humi) && humi > 0) rtAllData.humi[slot] = humi;
+      if (!isNaN(prod) && prod > 0) rtAllData.prod[slot] = prod;
       count++;
     }
 
@@ -2253,19 +2271,19 @@ async function loadTodayIntoRtChart() {
       rtChart.data.datasets[0].data = [...rtAllData.air];
       rtChart.data.datasets[1].data = [...rtAllData.humi];
       rtChart.data.datasets[2].data = [...rtAllData.prod];
-      // zones
       rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
       rtChart._zonesSet = true;
-      rtChart.update('none');
-      drawEndLabels(rtChart, rtAllData);
-      logMqtt('[Today] โหลด ' + count + ' จุดจาก Sheets (วันนี้ ' + todayLocal + ')', '#34d399');
+      rtChart.update();
+      setTimeout(() => { try { drawRtEndLabels(); } catch(e) {} }, 150);
+      logMqtt('[Today] โหลด ' + count + ' จุดจาก Sheets', '#34d399');
     } else {
-      logMqtt('[Today] ไม่พบข้อมูลวันนี้ (' + todayLocal + ') ใน Sheets', '#fbbf24');
+      logMqtt('[Today] ไม่พบข้อมูลวันนี้ใน Sheets (' + todayStr + ')', '#fbbf24');
     }
   } catch(e) {
     logMqtt('[Today] โหลดไม่สำเร็จ: ' + e.message, '#f87171');
   }
 }
+
 
 async function fetchWeatherDirect() {
   const LAT = 12.510719532073317;
@@ -2541,7 +2559,7 @@ async function loadHistByDate() {
     }
     if (!rows.length) { $('hist-status').textContent = 'ไม่มีข้อมูลในช่วงที่เลือก'; return; }
     renderHistCharts(rows);
-    renderHistTable(rows.slice(-10).reverse());
+    renderHistTable(rows.slice(-30).reverse());
     renderHistStats(rows);
     $('hist-status').textContent = 'โหลดสำเร็จ ' + rows.length + ' จุด · ' + fromDate + ' ถึง ' + toDate;
   } catch(e) {
