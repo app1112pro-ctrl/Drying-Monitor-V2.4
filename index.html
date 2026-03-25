@@ -423,7 +423,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt">v0.3.0 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v2.5.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt">v2.5.0 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -1025,7 +1025,7 @@ let weatherState = { temp: null, humi: null, time: '--' };
 let rtData = { labels:[], air:[], humi:[], prod:[] };
 let histRange = 24;
 let mqttClient = null;
-let mqttReconnectDelay = 5000; // v0.3.0: backoff delay
+let mqttReconnectDelay = 5000; // v2.5.0: backoff delay
 
 // ════════════════════════════════════════
 //  UI HELPERS
@@ -1525,7 +1525,7 @@ function drawEndLabels(chart, datasets3) {
 }
 
 function pushRtChart(d) {
-  if (!rtChart || pauseChartUpdates) return; // v0.3.0: skip เมื่อซ่อน
+  if (!rtChart || pauseChartUpdates) return; // v2.5.0: skip เมื่อซ่อน
   const toNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const air  = toNum(d.temp_air);
   const humi = toNum(d.humidity);
@@ -1914,7 +1914,7 @@ function parseAndRenderHistory(csv) {
   const cutoffMs = Date.now() - histRange * 3600000;
   const rows = [];
 
-  // v0.3.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
+  // v2.5.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
   const MAX_HIST_ROWS = 5000;
   const startLine = Math.max(1, lines.length - MAX_HIST_ROWS);
 
@@ -2697,7 +2697,7 @@ function resetHistRange() {
 }
 
 function connectMQTT() {
-  // ── v0.3.0: cleanup ก่อน reconnect ป้องกัน listener leak ──────────────
+  // ── v2.5.0: cleanup ก่อน reconnect ป้องกัน listener leak ──────────────
   if (mqttClient) {
     try {
       mqttClient.removeAllListeners();
@@ -2711,7 +2711,7 @@ function connectMQTT() {
     username:        CFG.mqttUser,
     password:        CFG.mqttPass,
     clientId:        CFG.mqttClient,
-    reconnectPeriod: 0,        // v0.3.0: ปิด auto-reconnect ของ library
+    reconnectPeriod: 0,        // v2.5.0: ปิด auto-reconnect ของ library
     connectTimeout:  10000,    // ใช้ reconnect logic ของเราแทน
     clean:           true,
   });
@@ -2745,7 +2745,7 @@ function connectMQTT() {
   mqttClient.on('close', () => {
     $('conn-dot').className = 'conn-dot';
     $('conn-label').textContent = 'กำลังเชื่อมต่อ...';
-    // v0.3.0: exponential backoff reconnect
+    // v2.5.0: exponential backoff reconnect
     logMqtt('Reconnecting in ' + (mqttReconnectDelay/1000) + 's...', '#5a7090');
     setTimeout(() => {
       if (!document.hidden) connectMQTT(); // ไม่ reconnect ตอนหน้าซ่อน
@@ -3009,7 +3009,7 @@ initRtChart();
 initHistCharts();
 
 // ════════════════════════════════════════
-//  v0.3.0: Visibility API
+//  v2.5.0: Visibility API
 //  ประหยัด resource ตอนไม่ได้ดูหน้าจอ
 // ════════════════════════════════════════
 let pauseChartUpdates = false;
