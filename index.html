@@ -1260,8 +1260,8 @@ function scheduleUIUpdate(d) {
   uiThrottleTimer = setTimeout(() => {
     uiThrottleTimer = null;
     if (uiPendingData && !pauseChartUpdates) {
-      updateUI(uiPendingData);
-      pushRtChart(uiPendingData);
+      updateUI(uiPendingData);    // อัปเดต metrics, state
+      pushRtChart(uiPendingData); // อัปเดต RT chart slot
       uiPendingData = null;
     }
   }, UI_THROTTLE_MS);
@@ -2424,7 +2424,17 @@ async function loadTodayIntoRtChart() {
       count++;
     }
 
-    logMqtt('[Today] พบ ' + count + ' แถว / ' + todayStr, count > 0 ? '#34d399' : '#fbbf24');
+    // debug: แสดง 1st row ที่ match
+    if (count === 0) {
+      // หา row ล่าสุดเพื่อ debug
+      for (let j = lines.length-1; j >= Math.max(1, lines.length-3); j--) {
+        const c = lines[j].split(',')[0];
+        if (c) { logMqtt('[Today] ตัวอย่าง row ล่าสุด: ' + c.replace(/"/g,''), '#fbbf24'); break; }
+      }
+      logMqtt('[Today] ไม่พบวันที่ ' + todayStr + ' — ตรวจ format ใน Sheets', '#f87171');
+    } else {
+      logMqtt('[Today] โหลดสำเร็จ ' + count + ' จุด (' + todayStr + ')', '#34d399');
+    }
 
     if (!rtChart) return;
 
@@ -2775,8 +2785,8 @@ function connectMQTT() {
   mqttClient.on('message', (topic, payload) => {
     try {
       const d = JSON.parse(payload.toString());
-      if (topic === 'dryer/data')   scheduleUIUpdate(d); // v0.3.1: throttled
-      if (topic === 'dryer/status') handleStatus(d);
+      if (topic === 'dryer/data')   scheduleUIUpdate(d);
+      if (topic === 'dryer/status') scheduleUIUpdate(d); // status มี field เดียวกัน
       if (topic === 'dryer/alert')  handleAlert(d);
     } catch(e) { logMqtt('Parse error: ' + e.message, '#f87171'); }
   });
