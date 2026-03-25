@@ -423,7 +423,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px">v2.4.1 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt">v0.3.0 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -1025,6 +1025,7 @@ let weatherState = { temp: null, humi: null, time: '--' };
 let rtData = { labels:[], air:[], humi:[], prod:[] };
 let histRange = 24;
 let mqttClient = null;
+let mqttReconnectDelay = 5000; // v0.3.0: backoff delay
 
 // ════════════════════════════════════════
 //  UI HELPERS
@@ -1420,7 +1421,7 @@ function initRtChart() {
       labels: labs,
       datasets: [
         { label:'T.อากาศ',
-          data: [...rtAllData.air],
+          data: rtAllData.air,
           borderColor:'#60a5fa', backgroundColor:'#60a5fa18',
           borderWidth:2, tension:.4, spanGaps:true, fill:false,
           yAxisID: 'yT',
@@ -1428,7 +1429,7 @@ function initRtChart() {
           pointHoverRadius: 4,
         },
         { label:'ความชื้น',
-          data: [...rtAllData.humi],
+          data: rtAllData.humi,
           borderColor:'#34d399', backgroundColor:'#34d39918',
           borderWidth:2, tension:.4, spanGaps:true, fill:false,
           yAxisID: 'yH',
@@ -1436,7 +1437,7 @@ function initRtChart() {
           pointHoverRadius: 4,
         },
         { label:'T.ผลิตภัณฑ์',
-          data: [...rtAllData.prod],
+          data: rtAllData.prod,
           borderColor:'#fb923c', backgroundColor:'#fb923c18',
           borderWidth:2, tension:.4, spanGaps:true, fill:false,
           yAxisID: 'yT',
@@ -1459,6 +1460,7 @@ function initRtChart() {
         },
         tooltip:{ mode:'index', intersect:false },
         timeBg:{ zones:[], seasons:[] },
+        endLabels:{}, // custom plugin
       },
       scales:{
         x:{
@@ -1523,7 +1525,7 @@ function drawEndLabels(chart, datasets3) {
 }
 
 function pushRtChart(d) {
-  if (!rtChart) return;
+  if (!rtChart || pauseChartUpdates) return; // v0.3.0: skip เมื่อซ่อน
   const toNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const air  = toNum(d.temp_air);
   const humi = toNum(d.humidity);
@@ -1535,13 +1537,10 @@ function pushRtChart(d) {
   if (air  !== null) rtAllData.air[slot]  = air;
   if (humi !== null) rtAllData.humi[slot] = humi;
   if (prod !== null) rtAllData.prod[slot] = prod;
-  rtChart.data.datasets[0].data = [...rtAllData.air];
-  rtChart.data.datasets[1].data = [...rtAllData.humi];
-  rtChart.data.datasets[2].data = [...rtAllData.prod];
-  // วาด end-label หลัง update
-  setTimeout(() => {
-    try { drawRtEndLabels(); } catch(e) {}
-  }, 50);
+  rtChart.data.datasets[0].data = rtAllData.air;
+  rtChart.data.datasets[1].data = rtAllData.humi;
+  rtChart.data.datasets[2].data = rtAllData.prod;
+
   // อัปเดต zones เฉพาะเมื่อต้องการ (ไม่ต้องทำทุก push)
   if (!rtChart._zonesSet) {
     rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
@@ -1622,6 +1621,74 @@ const timeBgPlugin = {
   }
 };
 Chart.register(timeBgPlugin);
+
+// Plugin วาด end-labels บน RT chart — ถาวร ไม่หายหลัง hover
+const rtEndLabelsPlugin = {
+  id: 'endLabels',
+  afterDraw(chart) {
+    try {
+      if (!rtAllData) return;
+      const datasets = [
+        { data: rtAllData.air,  color: '#60a5fa', axis: 'yT' },
+        { data: rtAllData.humi, color: '#34d399', axis: 'yH' },
+        { data: rtAllData.prod, color: '#fb923c', axis: 'yT' },
+      ];
+      const ctx = chart.ctx;
+      const ca  = chart.chartArea;
+      if (!ca) return;
+      const placed = [];
+      const MIN_GAP = 14;
+      ctx.save();
+      datasets.forEach(ds => {
+        const lastIdx = lastFilledIdx(ds.data);
+        if (lastIdx < 0) return;
+        const val = ds.data[lastIdx];
+        if (val === null || isNaN(val)) return;
+        const xScale = chart.scales && chart.scales.x;
+        const yScale = chart.scales && chart.scales[ds.axis];
+        if (!xScale || !yScale || typeof xScale.getPixelForValue !== 'function') return;
+        const x = xScale.getPixelForValue(lastIdx);
+        let y   = yScale.getPixelForValue(val);
+        // anti-overlap
+        let adj = y;
+        placed.forEach(p => {
+          if (Math.abs(adj - p) < MIN_GAP) adj = p + (adj >= p ? MIN_GAP : -MIN_GAP);
+        });
+        placed.push(adj);
+        // วงกลมที่จุดจริง
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI*2);
+        ctx.fillStyle = ds.color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // เส้นเชื่อม ถ้าขยับ
+        if (Math.abs(adj - y) > 2) {
+          ctx.beginPath();
+          ctx.strokeStyle = ds.color + '80';
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([2,2]);
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + (x > ca.right-70 ? -8 : 8), adj);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        // ตัวเลข
+        const isRight = x > ca.right - 70;
+        ctx.fillStyle = ds.color;
+        ctx.font = 'bold 11px IBM Plex Mono, monospace';
+        ctx.textAlign = isRight ? 'right' : 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(val.toFixed(1), x + (isRight ? -10 : 10), adj);
+      });
+      ctx.restore();
+    } catch(e) {}
+  }
+};
+Chart.register(rtEndLabelsPlugin);
+
+
 
 // สร้าง zones สำหรับ time-based charts
 function makeTimeZones(labels, rangeH) {
@@ -1842,17 +1909,28 @@ function parseAndRenderHistory(csv) {
   const iWifi  = col('wifi');
   const iRain  = col('rain_sensor');
 
-  const cutoff = Date.now() - histRange * 3600000;
+  // คำนวณ cutoff โดย offset timezone ไทย +7 ชม.
+  const TZ_OFFSET_MS = 7 * 3600000; // UTC+7
+  const cutoffMs = Date.now() - histRange * 3600000;
   const rows = [];
 
-  for (let i=1; i<lines.length; i++) {
+  // v0.3.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
+  const MAX_HIST_ROWS = 5000;
+  const startLine = Math.max(1, lines.length - MAX_HIST_ROWS);
+
+  for (let i = startLine; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
     const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
     const tsStr = iTime >= 0 ? cols[iTime] : cols[0];
     if (!tsStr) continue;
-    // รองรับ format "2026-03-24 15:01" และ "2026-03-24T15:01"
-    const ts = new Date(tsStr.replace(' ', 'T'));
-    if (isNaN(ts) || ts.getTime() < cutoff) continue;
+    // parse "2026-03-24 15:01" → treat เป็น local time (UTC+7)
+    const tsNorm = tsStr.replace(' ', 'T');
+    let ts = new Date(tsNorm);
+    // new Date("2026-03-24T15:01") parse เป็น local time ใน modern browsers
+    // ถ้า invalid ให้ลอง parse แบบ UTC แล้ว offset
+    if (isNaN(ts)) ts = new Date(tsNorm + 'Z');
+    if (isNaN(ts)) continue;
+    if (ts.getTime() < cutoffMs - TZ_OFFSET_MS) continue;
 
     rows.push({
       ts,
@@ -1912,12 +1990,18 @@ function renderHistCharts(rows) {
         if (r.humi !== null && !isNaN(r.humi)) buckets[hkey].humi.push(r.humi);
         if (!buckets[hkey].prod) buckets[hkey].prod=[];
         if (r.prod !== null && !isNaN(r.prod)) buckets[hkey].prod.push(r.prod);
+        if (!buckets[hkey].wifi) buckets[hkey].wifi=[];
+        if (r.wifi !== undefined) buckets[hkey].wifi.push(r.wifi);
+        if (!buckets[hkey].rain) buckets[hkey].rain=[];
+        buckets[hkey].rain.push(r.rain||0);
       }
     });
     labels   = Object.keys(buckets);
     airData  = labels.map(k => avg(buckets[k].air));
     humiData = labels.map(k => avg(buckets[k].humi));
     prodData = labels.map(k => avg(buckets[k].prod||[]));
+    // wifiData/rainData สำหรับ WiFi+Rain charts (pass ผ่าน rows)
+    // ใช้ rows โดยตรงใน updateWifiRainCharts
 
   } else if (rangeH <= 72) {
     // 3 วัน — bucket ราย 3 ชั่วโมง เช่น 00:00, 03:00, 06:00...
@@ -2088,21 +2172,9 @@ function renderHistCharts(rows) {
   histHumiChart.data.datasets[0].data = humiData;
   histHumiChart.update();
 
-  // อัปเดต WiFi + Rain charts
-  const wifiData = rows.map(r => r.wifi || 0);
-  const rainData = rows.map(r => r.rain || 0);
-  if (histWifiChart) {
-    histWifiChart.data.labels = labels;
-    histWifiChart.data.datasets[0].data = wifiData;
-    histWifiChart.options.plugins.timeBg.zones = (rangeH<=168) ? makeTimeZones(labels, rangeH) : (rangeH>720 ? makeSeasonZones(labels).zones||[] : []);
-    histWifiChart.update();
-  }
-  if (histRainChart) {
-    histRainChart.data.labels = labels;
-    histRainChart.data.datasets[0].data = rainData;
-    histRainChart.options.plugins.timeBg.zones = (rangeH<=168) ? makeTimeZones(labels, rangeH) : [];
-    histRainChart.update();
-  }
+  // อัปเดต WiFi + Rain charts — ใช้ bucket เดียวกับ labels
+  // สร้าง bucket wifi/rain ที่สอดคล้องกับ labels ที่สร้างไว้แล้ว
+  updateWifiRainCharts(rows, labels, rangeH);
 
   // วาด label จุดสุดท้าย
   setTimeout(() => {
@@ -2135,6 +2207,47 @@ function drawHistEndLabel(chart, data, color) {
   } catch(e) {}
 }
 
+
+
+function updateWifiRainCharts(rows, labels, rangeH) {
+  if (!histWifiChart || !histRainChart) return;
+  // สร้าง map จาก label → avg wifi / max rain
+  // labels มาจาก renderHistCharts แล้ว ต้อง match กับ rows
+  const wifiMap = {}, rainMap = {};
+  rows.forEach(r => {
+    // สร้าง label เหมือนกับที่ renderHistCharts สร้าง
+    let key;
+    if (rangeH <= 24) {
+      const h = r.ts.getHours();
+      key = String(h).padStart(2,'0') + ':' + (r.ts.getMinutes() < 30 ? '00' : '30');
+    } else if (rangeH <= 72) {
+      const h = Math.floor(r.ts.getHours()/3)*3;
+      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'}) + ' ' + String(h).padStart(2,'0')+':00';
+    } else if (rangeH <= 168) {
+      const h = Math.floor(r.ts.getHours()/6)*6;
+      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'}) + ' ' + String(h).padStart(2,'0')+':00';
+    } else if (rangeH <= 720) {
+      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+    } else {
+      key = r.ts.toLocaleDateString('th-TH',{month:'short'});
+    }
+    if (!wifiMap[key]) wifiMap[key] = [];
+    if (!rainMap[key]) rainMap[key] = [];
+    wifiMap[key].push(r.wifi || 0);
+    rainMap[key].push(r.rain || 0);
+  });
+
+  const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0;
+  const maxVal = arr => arr.length ? Math.max(...arr) : 0;
+
+  histWifiChart.data.labels = labels;
+  histWifiChart.data.datasets[0].data = labels.map(k => avg(wifiMap[k]||[]));
+  histWifiChart.update();
+
+  histRainChart.data.labels = labels;
+  histRainChart.data.datasets[0].data = labels.map(k => maxVal(rainMap[k]||[]));
+  histRainChart.update();
+}
 
 function toggleRawData() {
   const panel = $('raw-data-panel');
@@ -2268,13 +2381,13 @@ async function loadTodayIntoRtChart() {
     }
 
     if (count > 0 && rtChart) {
-      rtChart.data.datasets[0].data = [...rtAllData.air];
-      rtChart.data.datasets[1].data = [...rtAllData.humi];
-      rtChart.data.datasets[2].data = [...rtAllData.prod];
+      rtChart.data.datasets[0].data = rtAllData.air;
+      rtChart.data.datasets[1].data = rtAllData.humi;
+      rtChart.data.datasets[2].data = rtAllData.prod;
       rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
       rtChart._zonesSet = true;
       rtChart.update();
-      setTimeout(() => { try { drawRtEndLabels(); } catch(e) {} }, 150);
+
       logMqtt('[Today] โหลด ' + count + ' จุดจาก Sheets', '#34d399');
     } else {
       logMqtt('[Today] ไม่พบข้อมูลวันนี้ใน Sheets (' + todayStr + ')', '#fbbf24');
@@ -2476,13 +2589,13 @@ async function loadRtByDate() {
       count++;
     }
     if (count > 0 && rtChart) {
-      rtChart.data.datasets[0].data = [...rtAllData.air];
-      rtChart.data.datasets[1].data = [...rtAllData.humi];
-      rtChart.data.datasets[2].data = [...rtAllData.prod];
+      rtChart.data.datasets[0].data = rtAllData.air;
+      rtChart.data.datasets[1].data = rtAllData.humi;
+      rtChart.data.datasets[2].data = rtAllData.prod;
       rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
       rtChart._zonesSet = true;
       rtChart.update();
-      setTimeout(() => { try { drawRtEndLabels(); } catch(e) {} }, 100);
+
       logMqtt('[Date] โหลด ' + count + ' จุด วันที่ ' + dateStr, '#34d399');
     } else {
       logMqtt('[Date] ไม่มีข้อมูลวันที่ ' + dateStr + ' ใน Sheets', '#fbbf24');
@@ -2584,52 +2697,68 @@ function resetHistRange() {
 }
 
 function connectMQTT() {
+  // ── v0.3.0: cleanup ก่อน reconnect ป้องกัน listener leak ──────────────
+  if (mqttClient) {
+    try {
+      mqttClient.removeAllListeners();
+      mqttClient.end(true);
+    } catch(e) {}
+    mqttClient = null;
+  }
+
   const url = `wss://${CFG.mqttHost}:${CFG.mqttPort}/mqtt`;
   mqttClient = mqtt.connect(url, {
-    username: CFG.mqttUser,
-    password: CFG.mqttPass,
-    clientId: CFG.mqttClient,
-    reconnectPeriod: 5000,
-    connectTimeout: 10000,
+    username:        CFG.mqttUser,
+    password:        CFG.mqttPass,
+    clientId:        CFG.mqttClient,
+    reconnectPeriod: 0,        // v0.3.0: ปิด auto-reconnect ของ library
+    connectTimeout:  10000,    // ใช้ reconnect logic ของเราแทน
+    clean:           true,
   });
 
   mqttClient.on('connect', () => {
+    mqttReconnectDelay = 5000; // reset delay
     $('conn-dot').className = 'conn-dot on';
     $('conn-label').textContent = 'เชื่อมต่อแล้ว';
     logMqtt('Connected to HiveMQ Cloud', '#34d399');
     mqttClient.subscribe('dryer/data');
     mqttClient.subscribe('dryer/status');
     mqttClient.subscribe('dryer/alert');
-    logMqtt('Subscribed: dryer/data, dryer/status, dryer/alert', '#60a5fa');
+    logMqtt('Subscribed: dryer/data, dryer/status, dryer/alert', '#5a7090');
   });
 
   mqttClient.on('message', (topic, payload) => {
     try {
-      const msg = payload.toString();
-      logMqtt(topic + ': ' + msg.slice(0,80) + (msg.length>80?'...':''));
-      const d = JSON.parse(msg);
-      if (topic === 'dryer/data') {
-        updateUI(d);
-        logMqtt('data: T=' + d.temp_air + ' H=' + d.humidity + ' P=' + d.temp_product + ' Fan=' + d.fan, '#60a5fa');
-      } else if (topic === 'dryer/status') {
-        updateUI(d);
-      }
-      if (topic === 'dryer/alert') handleAlert(d);
+      const d = JSON.parse(payload.toString());
+      if (topic === 'dryer/data')   handleData(d);
+      if (topic === 'dryer/status') handleStatus(d);
+      if (topic === 'dryer/alert')  handleAlert(d);
     } catch(e) { logMqtt('Parse error: ' + e.message, '#f87171'); }
   });
 
-  mqttClient.on('reconnect', () => {
+  mqttClient.on('error', (err) => {
+    logMqtt('MQTT error: ' + err.message, '#f87171');
     $('conn-dot').className = 'conn-dot';
-    $('conn-label').textContent = 'กำลังเชื่อมต่อใหม่...';
-    logMqtt('Reconnecting...', '#fbbf24');
+    $('conn-label').textContent = 'เชื่อมต่อไม่ได้';
   });
 
-  mqttClient.on('error', (e) => {
-    $('conn-dot').className = 'conn-dot err';
-    $('conn-label').textContent = 'เชื่อมต่อไม่ได้';
-    logMqtt('Error: ' + e.message, '#f87171');
+  mqttClient.on('close', () => {
+    $('conn-dot').className = 'conn-dot';
+    $('conn-label').textContent = 'กำลังเชื่อมต่อ...';
+    // v0.3.0: exponential backoff reconnect
+    logMqtt('Reconnecting in ' + (mqttReconnectDelay/1000) + 's...', '#5a7090');
+    setTimeout(() => {
+      if (!document.hidden) connectMQTT(); // ไม่ reconnect ตอนหน้าซ่อน
+    }, mqttReconnectDelay);
+    mqttReconnectDelay = Math.min(mqttReconnectDelay * 1.5, 60000); // max 60s
+  });
+
+  mqttClient.on('offline', () => {
+    $('conn-dot').className = 'conn-dot';
+    $('conn-label').textContent = 'ออฟไลน์';
   });
 }
+
 
 function handleAlert(d) {
   const msgs = {
@@ -2878,6 +3007,32 @@ async function exportJobPDF() {
 
 initRtChart();
 initHistCharts();
+
+// ════════════════════════════════════════
+//  v0.3.0: Visibility API
+//  ประหยัด resource ตอนไม่ได้ดูหน้าจอ
+// ════════════════════════════════════════
+let pauseChartUpdates = false;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    pauseChartUpdates = true;
+    logMqtt('[Visibility] หน้าถูกซ่อน — หยุด chart update', '#5a7090');
+  } else {
+    pauseChartUpdates = false;
+    logMqtt('[Visibility] กลับมาดูหน้าจอ — sync ข้อมูล', '#34d399');
+    // sync ข้อมูลล่าสุดตอนกลับมา
+    setTimeout(() => {
+      if (rtChart) loadTodayIntoRtChart();
+    }, 500);
+    // reconnect MQTT ถ้าหลุด
+    if (!mqttClient || mqttClient.disconnected) {
+      mqttReconnectDelay = 5000;
+      connectMQTT();
+    }
+  }
+});
+
 connectMQTT();
 fetchWeather();
 setInterval(fetchWeather, 300000);
