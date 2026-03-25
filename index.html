@@ -181,7 +181,7 @@
   /* ── Weather sidebar ────────────────────── */
   .main-grid { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
   .weather-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: hidden; word-break: break-word; }
-  .weather-big { font-family: var(--mono); font-size: clamp(36px, 5vw, 64px); font-weight: 800; color: var(--air); line-height: 1; margin: 6px 0 2px; letter-spacing:-1px; }
+  .weather-big { font-family: var(--mono); font-size: clamp(32px, 3.5vw, 52px); font-weight: 800; color: var(--air); line-height: 1; margin: 6px 0 2px; letter-spacing:-1px; }
   .weather-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 5px 0; border-bottom: 1px solid var(--border); }
   .weather-row:last-child { border-bottom: none; }
   .weather-row b { color: var(--text); font-weight: 500; }
@@ -288,21 +288,23 @@
   }
   .date-left { display: flex; flex-direction: column; gap: 2px; }
   .date-weekday-big {
-    font-size: clamp(20px, 3vw, 40px); font-weight: 800; color: var(--text);
+    font-size: clamp(22px, 3.5vw, 44px); font-weight: 800; color: #f1f5f9;
     letter-spacing: -.02em; line-height: 1.1;
   }
   .date-line2 {
     display: flex; align-items: baseline; gap: 8px; line-height: 1;
   }
   .date-num {
-    font-family: var(--mono); font-size: clamp(28px, 4vw, 52px); font-weight: 800;
-    color: var(--air); line-height: 1; letter-spacing:-1px;
+    font-family: var(--mono); font-size: clamp(38px, 5vw, 64px); font-weight: 900;
+    color: #38bdf8; line-height: 1; letter-spacing: -2px;
+    text-shadow: 0 0 20px rgba(56,189,248,0.5);
   }
   .date-month-txt {
-    font-size: clamp(16px, 2.2vw, 28px); font-weight: 600; color: var(--text); line-height: 1;
+    font-size: clamp(18px, 2.5vw, 30px); font-weight: 700;
+    color: #e2e8f0; line-height: 1;
   }
   .date-year-txt {
-    font-size: clamp(13px, 1.8vw, 22px); font-weight: 500; color: var(--muted);
+    font-size: clamp(14px, 2vw, 24px); font-weight: 500; color: #64748b;
     font-family: var(--mono); line-height: 1;
   }
   .date-clock-big {
@@ -522,6 +524,13 @@
   @keyframes stalePulse {
     0%,100% { opacity:1; } 50% { opacity:0.5; }
   }
+
+
+  /* v2.6.1: date สี light mode */
+  body.light .date-num       { color: #0284c7 !important; text-shadow: 0 0 10px rgba(2,132,199,0.3); }
+  body.light .date-weekday-big { color: #1e293b !important; }
+  body.light .date-month-txt { color: #334155 !important; }
+  body.light .date-year-txt  { color: #64748b !important; }
 
 </style>
 </head>
@@ -1447,9 +1456,10 @@ function updateUI(d) {
   state.maxTemp    = parseFloat(d.max_temp)    || state.maxTemp;
 
   // Realtime page
-  if (state.air)  { $('v-air').textContent  = (+state.air).toFixed(1);  setDelta('d-air',  state.air,  state.prevAir,  'var(--air)'); }
-  if (state.humi) { $('v-humi').textContent = (+state.humi).toFixed(1); setDelta('d-humi', state.humi, state.prevHumi, 'var(--humi)'); }
-  if (state.prod) { $('v-prod').textContent = (+state.prod).toFixed(1); setDelta('d-prod', state.prod, state.prevProd, 'var(--prod)'); }
+  // v2.6.1 Fix: ใช้ !== null แทน truthy check (state.air=0 ก็ต้องแสดง)
+  if (state.air  !== null) { $('v-air').textContent  = (+state.air).toFixed(1);  setDelta('d-air',  state.air,  state.prevAir,  'var(--air)'); }
+  if (state.humi !== null) { $('v-humi').textContent = (+state.humi).toFixed(1); setDelta('d-humi', state.humi, state.prevHumi, 'var(--humi)'); }
+  if (state.prod !== null) { $('v-prod').textContent = (+state.prod).toFixed(1); setDelta('d-prod', state.prod, state.prevProd, 'var(--prod)'); }
 
   // Fan status
   const fanEl = $('v-fan');
@@ -1564,7 +1574,8 @@ function updateWeatherUI() {
 }
 
 function updateCompare() {
-  if (!state.air || !weatherState.temp) return;
+  // v2.6.1 Fix: ใช้ !== null แทน truthy check
+  if (state.air === null || weatherState.temp === null) return;
   const maxT = Math.max(state.air, weatherState.temp, 50);
   const inW  = Math.min((state.air / maxT) * 100, 100).toFixed(0);
   const outW = Math.min((weatherState.temp / maxT) * 100, 100).toFixed(0);
@@ -1572,7 +1583,7 @@ function updateCompare() {
   $('cmp-w-bar').style.width   = outW + '%';
   $('cmp-temp-val').textContent = state.air.toFixed(1) + '°  /  ' + weatherState.temp + '°C';
 
-  if (!state.humi) return;
+  if (state.humi === null) return; // v2.6.1 Fix
   const maxH = Math.max(state.humi, weatherState.humi, 100);
   $('cmp-humi-in').style.width  = ((state.humi / maxH)*100).toFixed(0) + '%';
   $('cmp-humi-out').style.width = ((weatherState.humi / maxH)*100).toFixed(0) + '%';
