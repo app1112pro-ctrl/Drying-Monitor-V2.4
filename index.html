@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.1</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -545,7 +545,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.6.1 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.6.2 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -2676,6 +2676,8 @@ async function loadTodayIntoRtChart(retryCount = 0) {
     }
 
     logMqtt('[Today] โหลดสำเร็จ ' + count + ' จุด (' + todayStr + ')', '#34d399');
+    // v2.6.2: อัปเดต metric cards จากข้อมูลล่าสุดทันที
+    updateLatestStateFromSheets();
     if (!rtChart) return;
     rtChart.data.datasets[0].data = rtAllData.air;
     rtChart.data.datasets[1].data = rtAllData.humi;
@@ -2696,6 +2698,99 @@ async function loadTodayIntoRtChart(retryCount = 0) {
 }
 
 
+
+// ════════════════════════════════════════
+//  v2.6.2: อัปเดต metric cards จากแถวล่าสุดใน Sheets
+//  เรียกหลัง loadTodayIntoRtChart — แสดงค่าล่าสุดทันทีโดยไม่รอ MQTT
+// ════════════════════════════════════════
+async function updateLatestStateFromSheets() {
+  if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
+  try {
+    const res  = await fetch(CFG.sheetsUrl + '&t=' + Date.now());
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return;
+
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const col = name => headers.indexOf(name);
+    const iTime  = col('time');
+    const iAir   = col('temp_air');
+    const iHumi  = col('humidity');
+    const iProd  = col('temp_product');
+    const iFan   = col('fan');
+    const iMode  = col('fan_mode');
+    const iProg  = col('program');
+    const iState = col('sys_state');
+    const iWifi  = col('wifi');
+    const iRain  = col('rain_sensor');
+    const iIneff = col('fan_ineff');
+    const iFanMin= col('fan_min_today');
+    const iTHumi = col('target_humi');
+    const iMaxT  = col('max_temp');
+
+    // ค้นหาแถวล่าสุดที่มีข้อมูลวันนี้
+    const now      = new Date();
+    const todayStr = now.getFullYear() + '-'
+      + String(now.getMonth()+1).padStart(2,'0') + '-'
+      + String(now.getDate()).padStart(2,'0');
+
+    let lastRow = null;
+    for (let i = lines.length - 1; i >= 1; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const cols = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
+      const ts   = cols[iTime] || '';
+      if (ts.slice(0,10) === todayStr) { lastRow = cols; break; }
+    }
+
+    // ถ้าไม่มีวันนี้ ให้ใช้แถวสุดท้ายที่มีอยู่ (ข้อมูลล่าสุดในฐานข้อมูล)
+    if (!lastRow) {
+      for (let i = lines.length - 1; i >= 1; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        lastRow = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
+        break;
+      }
+    }
+    if (!lastRow) return;
+
+    // สร้าง data object แบบเดียวกับที่ MQTT ส่งมา
+    const d = {};
+    const _s = (idx) => idx >= 0 ? (lastRow[idx] || '') : '';
+    const _f = (idx) => idx >= 0 ? parseFloat(lastRow[idx]) : NaN;
+
+    d.temp_air     = _s(iAir);
+    d.humidity     = _s(iHumi);
+    d.temp_product = _s(iProd);
+    d.fan          = _s(iFan);
+    d.fan_mode     = _s(iMode);
+    d.program      = _s(iProg);
+    d.sys_state    = _s(iState);
+    d.wifi         = _s(iWifi);
+    d.rain_sensor  = _s(iRain);
+    d.fan_ineff    = _s(iIneff);
+    d.fan_min_today= !isNaN(_f(iFanMin)) ? _f(iFanMin) : undefined;
+    d.target_humi  = _s(iTHumi);
+    d.max_temp     = _s(iMaxT);
+
+    // ตรวจว่ามีค่าจริง (ไม่ใช่ ERR หรือ ว่าง)
+    const airOK  = d.temp_air  && d.temp_air  !== 'ERR' && !isNaN(parseFloat(d.temp_air));
+    const humiOK = d.humidity  && d.humidity  !== 'ERR' && !isNaN(parseFloat(d.humidity));
+    const prodOK = d.temp_product && d.temp_product !== 'ERR' && !isNaN(parseFloat(d.temp_product));
+
+    if (!airOK && !humiOK && !prodOK) {
+      logMqtt('[Sheets] ไม่พบข้อมูลเซนเซอร์ใน Sheets', '#fbbf24');
+      return;
+    }
+
+    // อัปเดต state และ UI เหมือน MQTT มาถึง
+    updateUI(d);
+    logMqtt('[Sheets] อัปเดต metrics จากข้อมูลล่าสุด (' + (_s(iTime) || 'ไม่ทราบเวลา') + ')', '#60a5fa');
+
+  } catch(e) {
+    logMqtt('[Sheets] updateLatest error: ' + e.message, '#f87171');
+  }
+}
 
 
 async function fetchWeatherDirect() {
@@ -3343,6 +3438,8 @@ fetchWeather();
 setInterval(fetchWeather, 300000);
 // โหลดข้อมูลวันนี้จาก Sheets มาเติม RT chart slots
 setTimeout(loadTodayIntoRtChart, 2000); // refresh weather ทุก 5 นาที
+// v2.6.2: อัปเดต metric cards จาก Sheets ทุก 10 นาที (ตรงกับ ESP32 log interval)
+setInterval(updateLatestStateFromSheets, 600000);
 
 // ════════════════════════════════════════
 //  ระบบงานอบ (Job Management)
