@@ -1955,15 +1955,9 @@ function parseAndRenderHistory(csv) {
     const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
     const tsStr = iTime >= 0 ? cols[iTime] : cols[0];
     if (!tsStr) continue;
-    // parse "2026-03-24 15:01" → treat เป็น local time (UTC+7)
-    const tsNorm = tsStr.replace(' ', 'T');
-    let ts = new Date(tsNorm);
-    // new Date("2026-03-24T15:01") parse เป็น local time ใน modern browsers
-    // ถ้า invalid ให้ลอง parse แบบ UTC แล้ว offset
-    if (isNaN(ts)) ts = new Date(tsNorm + 'Z');
-    if (isNaN(ts)) continue;
+    const ts = parseTimestamp(tsStr);
+    if (!ts) continue;
     if (ts.getTime() < cutoffMs - TZ_OFFSET_MS) continue;
-
     rows.push({
       ts,
       time: ts.toLocaleString('th-TH'),
@@ -2367,6 +2361,20 @@ function drawHistEndLabelDual(chart, data, color, axisId) {
   } catch(e) {}
 }
 
+
+// v2.5.0: parse timestamp รองรับ "2026-03-25 9:46" และ "2026-03-25 09:46"
+function parseTimestamp(tsStr) {
+  if (!tsStr) return null;
+  // normalize: แทน space ด้วย T และ pad ชั่วโมงให้เป็น 2 หลัก
+  // "2026-03-25 9:46" → "2026-03-25T09:46"
+  // "2026-03-25 09:46" → "2026-03-25T09:46"
+  const norm = tsStr.trim().replace(' ', 'T');
+  // pad hour: "2026-03-25T9:46" → "2026-03-25T09:46"
+  const padded = norm.replace(/T(\d):/, 'T0$1:');
+  const dt = new Date(padded);
+  return isNaN(dt) ? null : dt;
+}
+
 async function loadTodayIntoRtChart() {
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
   try {
@@ -2409,8 +2417,8 @@ async function loadTodayIntoRtChart() {
       if (datepart !== todayStr) continue;
 
       // parse เวลา
-      const dt = new Date(tsStr.replace(' ', 'T'));
-      if (isNaN(dt)) continue;
+      const dt = parseTimestamp(tsStr);
+      if (!dt) continue;
       const slot = dt.getHours() * 6 + Math.floor(dt.getMinutes() / 10);
       if (slot < 0 || slot > 143) continue;
 
@@ -2632,8 +2640,8 @@ async function loadRtByDate() {
       const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
       const ts   = cols[iTime];
       if (!ts || !ts.startsWith(dateStr)) continue;
-      const dt   = new Date(ts.replace(' ','T'));
-      if (isNaN(dt)) continue;
+      const dt = parseTimestamp(ts);
+      if (!dt) continue;
       const slot = slotIndex(dt);
       const air  = parseFloat(cols[iAir]);
       const humi = parseFloat(cols[iHumi]);
