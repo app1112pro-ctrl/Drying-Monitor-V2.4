@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.5.0</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.4.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -423,7 +423,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v2.5.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt">v2.5.0 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.5.0 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -1025,7 +1025,7 @@ let weatherState = { temp: null, humi: null, time: '--' };
 let rtData = { labels:[], air:[], humi:[], prod:[] };
 let histRange = 24;
 let mqttClient = null;
-let mqttReconnectDelay = 5000; // v2.5.0: backoff delay
+let mqttReconnectDelay = 5000; // v0.3.0: backoff delay
 
 // ════════════════════════════════════════
 //  UI HELPERS
@@ -1040,18 +1040,29 @@ function showPage(name, el) {
   if (name === 'history') loadHistory();
 }
 
+// v0.3.1: circular buffer แทน innerHTML accumulation
+const LOG_MAX = 50;
+const mqttLogBuf = [];
+const cmdLogBuf  = [];
+
 function logMqtt(msg, color='#5a7090') {
-  const el = $('mqtt-log');
   const now = new Date().toLocaleTimeString('th-TH');
-  el.innerHTML = `<span style="color:${color}">[${now}] ${msg}</span>\n` + el.innerHTML;
-  el.innerHTML = el.innerHTML.split('\n').slice(0,30).join('\n');
+  mqttLogBuf.unshift({ text: `[${now}] ${msg}`, color });
+  if (mqttLogBuf.length > LOG_MAX) mqttLogBuf.length = LOG_MAX;
+  const el = $('mqtt-log');
+  if (el) el.innerHTML = mqttLogBuf
+    .map(e => `<span style="color:${e.color}">${e.text}</span>`)
+    .join('\n');
 }
 
 function logCmd(msg) {
-  const el = $('cmd-log');
   const now = new Date().toLocaleTimeString('th-TH');
-  el.innerHTML = `<span style="color:var(--air)">[${now}] ${msg}</span>\n` + el.innerHTML;
-  el.innerHTML = el.innerHTML.split('\n').slice(0,20).join('\n');
+  cmdLogBuf.unshift({ text: `[${now}] ${msg}` });
+  if (cmdLogBuf.length > LOG_MAX) cmdLogBuf.length = LOG_MAX;
+  const el = $('cmd-log');
+  if (el) el.innerHTML = cmdLogBuf
+    .map(e => `<span style="color:var(--air)">${e.text}</span>`)
+    .join('\n');
 }
 
 
@@ -1237,6 +1248,25 @@ setInterval(clock, 1000); clock();
 // ════════════════════════════════════════
 //  UPDATE UI FROM STATE
 // ════════════════════════════════════════
+
+// ════ v2.5.0: UI Throttle ════
+const UI_THROTTLE_MS  = 1000;
+let   uiPendingData   = null;
+let   uiThrottleTimer = null;
+
+function scheduleUIUpdate(d) {
+  uiPendingData = d;
+  if (uiThrottleTimer) return;
+  uiThrottleTimer = setTimeout(() => {
+    uiThrottleTimer = null;
+    if (uiPendingData && !pauseChartUpdates) {
+      updateUI(uiPendingData);
+      pushRtChart(uiPendingData);
+      uiPendingData = null;
+    }
+  }, UI_THROTTLE_MS);
+}
+
 function updateUI(d) {
   // prev for delta
   if (state.air !== null) { state.prevAir=state.air; state.prevHumi=state.humi; state.prevProd=state.prod; }
@@ -1525,7 +1555,7 @@ function drawEndLabels(chart, datasets3) {
 }
 
 function pushRtChart(d) {
-  if (!rtChart || pauseChartUpdates) return; // v2.5.0: skip เมื่อซ่อน
+  if (!rtChart || pauseChartUpdates) return; // v0.3.0: skip เมื่อซ่อน
   const toNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const air  = toNum(d.temp_air);
   const humi = toNum(d.humidity);
@@ -1627,12 +1657,14 @@ const rtEndLabelsPlugin = {
   id: 'endLabels',
   afterDraw(chart) {
     try {
-      if (!rtAllData) return;
-      const datasets = [
-        { data: rtAllData.air,  color: '#60a5fa', axis: 'yT' },
-        { data: rtAllData.humi, color: '#34d399', axis: 'yH' },
-        { data: rtAllData.prod, color: '#fb923c', axis: 'yT' },
-      ];
+      // อ่านจาก chart.data.datasets โดยตรง (ไม่ขึ้นกับ rtAllData global)
+      const dsColors = ['#60a5fa','#34d399','#fb923c'];
+      const dsAxes   = ['yT','yH','yT'];
+      const datasets = chart.data.datasets.map((ds, i) => ({
+        data:  ds.data,
+        color: dsColors[i] || '#ffffff',
+        axis:  dsAxes[i]   || 'yT',
+      }));
       const ctx = chart.ctx;
       const ca  = chart.chartArea;
       if (!ca) return;
@@ -1914,7 +1946,7 @@ function parseAndRenderHistory(csv) {
   const cutoffMs = Date.now() - histRange * 3600000;
   const rows = [];
 
-  // v2.5.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
+  // v0.3.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
   const MAX_HIST_ROWS = 5000;
   const startLine = Math.max(1, lines.length - MAX_HIST_ROWS);
 
@@ -2338,64 +2370,77 @@ function drawHistEndLabelDual(chart, data, color, axisId) {
 async function loadTodayIntoRtChart() {
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
   try {
-    const res  = await fetch(CFG.sheetsUrl);
-    const text = await res.text();
+    const res   = await fetch(CFG.sheetsUrl + '&t=' + Date.now()); // bust cache
+    const text  = await res.text();
     const lines = text.trim().split('\n');
-    if (lines.length < 2) return;
+    if (lines.length < 2) { logMqtt('[Today] CSV ว่างเปล่า', '#fbbf24'); return; }
 
     const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
-    const col = name => headers.indexOf(name);
-    const iTime = col('time');
-    const iAir  = col('temp_air');
-    const iHumi = col('humidity');
-    const iProd = col('temp_product');
-    if (iTime < 0) { logMqtt('[Today] ไม่พบ column time', '#f87171'); return; }
+    const col     = name => headers.indexOf(name);
+    const iTime   = col('time');
+    const iAir    = col('temp_air');
+    const iHumi   = col('humidity');
+    const iProd   = col('temp_product');
 
-    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (iTime < 0) { logMqtt('[Today] ไม่พบ column time ใน CSV', '#f87171'); return; }
+
+    // ดึงวันนี้แบบ local (ไทย)
+    const now      = new Date();
+    const todayStr = now.getFullYear() + '-'
+      + String(now.getMonth()+1).padStart(2,'0') + '-'
+      + String(now.getDate()).padStart(2,'0');
+
+    // reset slots วันนี้ก่อนเติม
+    const emptyArr = () => Array(144).fill(null);
+    rtAllData.air  = emptyArr();
+    rtAllData.humi = emptyArr();
+    rtAllData.prod = emptyArr();
+
     let count = 0;
-
     for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
+      const line = lines[i].trim();
+      if (!line) continue;
+      const cols  = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
       const tsStr = cols[iTime];
       if (!tsStr) continue;
 
-      // รองรับ "2026-03-24 15:01" หรือ "2026-03-24T15:01"
+      // match วันที่ (รองรับ "2026-03-25 07:30" และ "2026-03-25T07:30")
       const datepart = tsStr.slice(0, 10);
       if (datepart !== todayStr) continue;
 
+      // parse เวลา
       const dt = new Date(tsStr.replace(' ', 'T'));
       if (isNaN(dt)) continue;
+      const slot = dt.getHours() * 6 + Math.floor(dt.getMinutes() / 10);
+      if (slot < 0 || slot > 143) continue;
 
-      const slot = slotIndex(dt); // ทุก 10 นาที = 0-143
-      if (slot < 0 || slot >= 144) continue;
-
+      // เติม slot — เว้นว่างถ้าไม่มีค่า (null)
       const air  = parseFloat(cols[iAir]);
       const humi = parseFloat(cols[iHumi]);
       const prod = parseFloat(cols[iProd]);
-
-      if (!isNaN(air)  && air  > 0) rtAllData.air[slot]  = air;
-      if (!isNaN(humi) && humi > 0) rtAllData.humi[slot] = humi;
-      if (!isNaN(prod) && prod > 0) rtAllData.prod[slot] = prod;
+      if (!isNaN(air))  rtAllData.air[slot]  = air;
+      if (!isNaN(humi)) rtAllData.humi[slot] = humi;
+      if (!isNaN(prod)) rtAllData.prod[slot] = prod;
       count++;
     }
 
-    if (count > 0 && rtChart) {
-      rtChart.data.datasets[0].data = rtAllData.air;
-      rtChart.data.datasets[1].data = rtAllData.humi;
-      rtChart.data.datasets[2].data = rtAllData.prod;
-      rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
-      rtChart._zonesSet = true;
-      rtChart.update();
+    logMqtt('[Today] พบ ' + count + ' แถว / ' + todayStr, count > 0 ? '#34d399' : '#fbbf24');
 
-      logMqtt('[Today] โหลด ' + count + ' จุดจาก Sheets', '#34d399');
-    } else {
-      logMqtt('[Today] ไม่พบข้อมูลวันนี้ใน Sheets (' + todayStr + ')', '#fbbf24');
-    }
+    if (!rtChart) return;
+
+    // บอก Chart.js ว่า data เปลี่ยน (ต้อง re-assign เพราะ reference เดิม)
+    rtChart.data.datasets[0].data = rtAllData.air;
+    rtChart.data.datasets[1].data = rtAllData.humi;
+    rtChart.data.datasets[2].data = rtAllData.prod;
+    rtChart.options.plugins.timeBg.zones = makeTimeZones(buildRtLabels(), 24);
+    rtChart._zonesSet = true;
+    rtChart.update('none');
+
   } catch(e) {
-    logMqtt('[Today] โหลดไม่สำเร็จ: ' + e.message, '#f87171');
+    logMqtt('[Today] error: ' + e.message, '#f87171');
   }
 }
+
 
 
 async function fetchWeatherDirect() {
@@ -2697,7 +2742,7 @@ function resetHistRange() {
 }
 
 function connectMQTT() {
-  // ── v2.5.0: cleanup ก่อน reconnect ป้องกัน listener leak ──────────────
+  // ── v0.3.0: cleanup ก่อน reconnect ป้องกัน listener leak ──────────────
   if (mqttClient) {
     try {
       mqttClient.removeAllListeners();
@@ -2711,7 +2756,7 @@ function connectMQTT() {
     username:        CFG.mqttUser,
     password:        CFG.mqttPass,
     clientId:        CFG.mqttClient,
-    reconnectPeriod: 0,        // v2.5.0: ปิด auto-reconnect ของ library
+    reconnectPeriod: 0,        // v0.3.0: ปิด auto-reconnect ของ library
     connectTimeout:  10000,    // ใช้ reconnect logic ของเราแทน
     clean:           true,
   });
@@ -2730,7 +2775,7 @@ function connectMQTT() {
   mqttClient.on('message', (topic, payload) => {
     try {
       const d = JSON.parse(payload.toString());
-      if (topic === 'dryer/data')   handleData(d);
+      if (topic === 'dryer/data')   scheduleUIUpdate(d); // v0.3.1: throttled
       if (topic === 'dryer/status') handleStatus(d);
       if (topic === 'dryer/alert')  handleAlert(d);
     } catch(e) { logMqtt('Parse error: ' + e.message, '#f87171'); }
@@ -2745,7 +2790,7 @@ function connectMQTT() {
   mqttClient.on('close', () => {
     $('conn-dot').className = 'conn-dot';
     $('conn-label').textContent = 'กำลังเชื่อมต่อ...';
-    // v2.5.0: exponential backoff reconnect
+    // v0.3.0: exponential backoff reconnect
     logMqtt('Reconnecting in ' + (mqttReconnectDelay/1000) + 's...', '#5a7090');
     setTimeout(() => {
       if (!document.hidden) connectMQTT(); // ไม่ reconnect ตอนหน้าซ่อน
@@ -3009,7 +3054,7 @@ initRtChart();
 initHistCharts();
 
 // ════════════════════════════════════════
-//  v2.5.0: Visibility API
+//  v0.3.0: Visibility API
 //  ประหยัด resource ตอนไม่ได้ดูหน้าจอ
 // ════════════════════════════════════════
 let pauseChartUpdates = false;
