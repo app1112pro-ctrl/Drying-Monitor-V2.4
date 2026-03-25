@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.0</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -536,7 +536,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.6.0 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.6.1 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -1416,10 +1416,16 @@ function scheduleUIUpdate(d) {
   if (uiThrottleTimer) return;
   uiThrottleTimer = setTimeout(() => {
     uiThrottleTimer = null;
-    if (uiPendingData && !pauseChartUpdates) {
-      updateUI(uiPendingData);    // อัปเดต metrics, state
-      pushRtChart(uiPendingData); // อัปเดต RT chart slot
-      uiPendingData = null;
+    if (!uiPendingData) return;
+    const data = uiPendingData;
+    uiPendingData = null; // v2.6.1 Fix: clear ก่อนเสมอ ไม่ว่า pause หรือไม่
+
+    // v2.6.1 Fix: state/metrics update เสมอ (ไม่ขึ้นกับ pauseChartUpdates)
+    updateUI(data);
+
+    // chart update: pause เฉพาะเมื่อซ่อนหน้า
+    if (!pauseChartUpdates) {
+      pushRtChart(data);
     }
   }, UI_THROTTLE_MS);
 }
@@ -1825,10 +1831,11 @@ const rtEndLabelsPlugin = {
       const ctx = chart.ctx;
       const ca  = chart.chartArea;
       if (!ca) return;
-      const placed = [];
-      const MIN_GAP = 14;
+      // v2.6.1 Fix: เพิ่ม MIN_GAP และ track ทั้ง x,y เพื่อป้องกัน overlap
+      const MIN_GAP_Y = 22;  // เพียงพอสำหรับ font 11px
+      const placed = []; // [{x, y, adj}]
       ctx.save();
-      datasets.forEach(ds => {
+      datasets.forEach((ds, dsIdx) => {
         const lastIdx = lastFilledIdx(ds.data);
         if (lastIdx < 0) return;
         const val = ds.data[lastIdx];
@@ -1837,39 +1844,51 @@ const rtEndLabelsPlugin = {
         const yScale = chart.scales && chart.scales[ds.axis];
         if (!xScale || !yScale || typeof xScale.getPixelForValue !== 'function') return;
         const x = xScale.getPixelForValue(lastIdx);
-        let y   = yScale.getPixelForValue(val);
-        // anti-overlap
+        const y = yScale.getPixelForValue(val);
+        // v2.6.1 Fix: anti-overlap Y — ดัน label ออกจาก placed เดิม
         let adj = y;
         placed.forEach(p => {
-          if (Math.abs(adj - p) < MIN_GAP) adj = p + (adj >= p ? MIN_GAP : -MIN_GAP);
+          if (Math.abs(adj - p.adj) < MIN_GAP_Y) {
+            adj = p.adj + (adj >= p.adj ? MIN_GAP_Y : -MIN_GAP_Y);
+          }
         });
-        placed.push(adj);
-        // วงกลมที่จุดจริง
+        placed.push({ x, y, adj });
+        // วงกลมที่จุดข้อมูลจริง
         ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI*2);
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
         ctx.fillStyle = ds.color;
         ctx.fill();
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1.5;
         ctx.stroke();
-        // เส้นเชื่อม ถ้าขยับ
-        if (Math.abs(adj - y) > 2) {
+        // เส้นเชื่อมถ้า label ถูกเลื่อน
+        if (Math.abs(adj - y) > 3) {
           ctx.beginPath();
-          ctx.strokeStyle = ds.color + '80';
+          ctx.strokeStyle = ds.color + '70';
           ctx.lineWidth = 0.8;
-          ctx.setLineDash([2,2]);
+          ctx.setLineDash([2, 3]);
           ctx.moveTo(x, y);
-          ctx.lineTo(x + (x > ca.right-70 ? -8 : 8), adj);
+          ctx.lineTo(x, adj);
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        // ตัวเลข
-        const isRight = x > ca.right - 70;
+        // ตัวเลข: สลับซ้าย-ขวาตาม dsIdx เพื่อลด horizontal overlap
+        // yT มี 2 เส้น (air, prod) → สลับ offset
+        const isRight = x > ca.right - 80;
+        // v2.6.1 Fix: offset X แตกต่างกันตาม axis + index
+        let offsetX;
+        if (ds.axis === 'yH') {
+          // ความชื้น อยู่แกนขวา — วาดชิดขวา
+          offsetX = isRight ? -10 : 8;
+        } else {
+          // อุณหภูมิ อยู่แกนซ้าย — สลับ offset ตาม dsIdx
+          offsetX = isRight ? -(10 + dsIdx * 0) : (8 + dsIdx * 36);
+        }
         ctx.fillStyle = ds.color;
         ctx.font = 'bold 11px IBM Plex Mono, monospace';
         ctx.textAlign = isRight ? 'right' : 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(val.toFixed(1), x + (isRight ? -10 : 10), adj);
+        ctx.fillText(val.toFixed(1), x + (isRight ? -10 : offsetX), adj);
       });
       ctx.restore();
     } catch(e) {}
@@ -2414,9 +2433,10 @@ function updateWifiRainCharts(rows, labels, rangeH) {
   // v2.6.0: สร้าง wifi/rain data aligned กับ labels โดยตรง
   // ใช้ index เดียวกับที่ renderHistCharts bucket ไว้
   const n = labels.length;
+  // v2.6.1 Fix: ใช้ fill(null) แทน fill(0) เพื่อไม่แสดง slot ที่ไม่มีข้อมูล
   const wifiSum  = new Array(n).fill(0);
   const wifiCnt  = new Array(n).fill(0);
-  const rainMax  = new Array(n).fill(0);
+  const rainMax  = new Array(n).fill(null); // null = ไม่มีข้อมูล
 
   // สร้าง labelIndex map
   const labelMap = {};
@@ -2449,12 +2469,16 @@ function updateWifiRainCharts(rows, labels, rangeH) {
     if (i === undefined) return;
     wifiSum[i] += (r.wifi || 0);
     wifiCnt[i]++;
-    if (r.rain > rainMax[i]) rainMax[i] = r.rain;
+    // v2.6.1 Fix: rain max — เริ่มต้น null แล้วค่อยเติม
+    if (rainMax[i] === null) rainMax[i] = r.rain;
+    else if (r.rain > rainMax[i]) rainMax[i] = r.rain;
   });
 
-  const wifiData = wifiSum.map((s,i) => wifiCnt[i] ? +(s/wifiCnt[i]).toFixed(1) : null);
+  // v2.6.1 Fix: null สำหรับ slot ที่ไม่มีข้อมูล (ไม่ใช่ 0)
+  const wifiData = wifiSum.map((s,i) => wifiCnt[i] > 0 ? +(s/wifiCnt[i]).toFixed(1) : null);
 
   histWifiChart.data.labels = labels;
+  // v2.6.1 Fix: null จะไม่วาดแท่งในกราฟ bar
   histWifiChart.data.datasets[0].data = wifiData;
   histWifiChart.options.plugins.timeBg.zones =
     (rangeH<=168) ? makeTimeZones(labels, rangeH) :
