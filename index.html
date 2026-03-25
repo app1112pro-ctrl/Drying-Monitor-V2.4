@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.5.1</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -410,6 +410,119 @@
   .wifi-text.good { color: var(--success); }
   .wifi-text.mid  { color: var(--prod); }
   .wifi-text.weak { color: var(--danger); }
+
+  /* ── Toast Notification ─────────────────────── */
+  #toast-container {
+    position: fixed; bottom: 24px; right: 24px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 9999; pointer-events: none;
+  }
+  .toast {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; color: var(--text);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    pointer-events: all; min-width: 220px; max-width: 340px;
+    animation: toastIn .25s ease;
+    transition: opacity .3s, transform .3s;
+  }
+  .toast.hide { opacity:0; transform: translateX(20px); }
+  .toast-icon { font-size: 16px; flex-shrink:0; }
+  .toast-msg  { flex:1; line-height:1.4; }
+  .toast.success { border-color: var(--success); }
+  .toast.error   { border-color: var(--danger); }
+  .toast.warn    { border-color: var(--prod); }
+  .toast.info    { border-color: var(--air); }
+  @keyframes toastIn {
+    from { opacity:0; transform: translateX(20px); }
+    to   { opacity:1; transform: translateX(0); }
+  }
+
+
+  /* ══════════════════════════════════════════
+     v2.6.0 Responsive — 3 breakpoints
+  ══════════════════════════════════════════ */
+
+  /* ── Tablet 768–1023px ─────────────────── */
+  @media (max-width: 1023px) {
+    .container { max-width: 100%; padding: 0 14px; }
+    .main-grid { grid-template-columns: 1fr; }
+    .sidebar   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .metric-grid { grid-template-columns: repeat(3, 1fr); }
+    .status-row  { grid-template-columns: repeat(2, 1fr); }
+    .hist-chart-wrap canvas { max-height: 240px; }
+    .date-bar { gap: 4px; }
+    .date-clock-big { font-size: clamp(18px, 3vw, 32px) !important; }
+  }
+
+  /* ── Phone 480–767px ───────────────────── */
+  @media (max-width: 767px) {
+    .container { padding: 0 10px; }
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .status-row  { grid-template-columns: repeat(2, 1fr); }
+    .chart-row   { grid-template-columns: 1fr !important; }
+    .sidebar     { grid-template-columns: 1fr; }
+    .tabs        { gap: 4px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .tab         { font-size: 11px; padding: 6px 10px; white-space: nowrap; flex-shrink: 0; }
+    .hist-chart-wrap canvas { max-height: 200px; }
+    .date-weekday-big { font-size: clamp(18px, 5vw, 32px) !important; }
+    .date-num         { font-size: clamp(20px, 6vw, 36px) !important; }
+    .date-month-txt   { font-size: clamp(14px, 4vw, 22px) !important; }
+    .date-clock-big   { font-size: clamp(16px, 4.5vw, 28px) !important; }
+    .date-bar { flex-direction: column; gap: 6px; align-items: flex-start; }
+    .date-clock-big { align-self: flex-end; margin-top: -40px; }
+    #page-jobs > div { grid-template-columns: 1fr !important; }
+    .mqtt-log-wrap  { display: none; }
+    #toast-container { bottom: 12px; right: 12px; }
+    .toast { min-width: 180px; font-size: 12px; }
+    .weather-card { padding: 12px; }
+    .header-logo  { width: 36px; height: 36px; }
+  }
+
+  /* ── Phone S <480px ─────────────────────── */
+  @media (max-width: 479px) {
+    .metric-grid { grid-template-columns: 1fr 1fr; }
+    .metric-val  { font-size: clamp(22px, 7vw, 32px) !important; }
+    .status-row  { grid-template-columns: 1fr 1fr; }
+    .tabs        { font-size: 10px; }
+    .tab         { padding: 5px 8px; }
+    .hist-filter { flex-wrap: wrap; gap: 4px; }
+    .filter-btn  { font-size: 10px; padding: 4px 8px; }
+    .card        { padding: 12px; }
+    .card-title  { font-size: 11px; }
+    .date-bar    { padding: 6px 0 8px; }
+    .date-weekday-big { font-size: clamp(16px, 5vw, 24px) !important; }
+    .date-num         { font-size: clamp(18px, 6vw, 28px) !important; }
+  }
+
+
+  /* ── v2.6.0 Visual Hierarchy ───────────────── */
+  /* วันที่ — สีขาวสด โดดเด่น */
+  .date-weekday-big {
+    color: var(--text) !important;
+    text-shadow: 0 0 20px rgba(255,255,255,0.15);
+  }
+  .date-num {
+    color: var(--air) !important;
+    text-shadow: 0 0 24px rgba(96,165,250,0.4);
+  }
+  .date-month-txt { color: #e2e8f0 !important; }
+  .date-clock-big {
+    color: #94a3b8 !important;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Weather temp — สีฟ้าสว่าง เด่นมาก */
+  .weather-big {
+    text-shadow: 0 0 30px rgba(96,165,250,0.5);
+    letter-spacing: -2px;
+  }
+  /* Stale indicator */
+  .stale-warn { color: var(--danger) !important; animation: stalePulse 2s infinite; }
+  @keyframes stalePulse {
+    0%,100% { opacity:1; } 50% { opacity:0.5; }
+  }
+
 </style>
 </head>
 <body>
@@ -423,7 +536,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.5.1 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.6.0 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -991,6 +1104,8 @@
       </div>
     </div>
   </div>
+
+  <div id="toast-container"></div>
 </div><!-- /shell -->
 
 <script>
@@ -1016,6 +1131,7 @@ const CFG = {
 // ════════════════════════════════════════
 let state = {
   air: null, humi: null, prod: null,
+  _lastMqttMs: null,
   fan: '--', prog: '--', sysState: '--',
   fanMin: '--', targetHumi: null, maxTemp: null,
   nightStart: '--', nightEnd: '--',
@@ -1038,6 +1154,12 @@ function showPage(name, el) {
   $('page-' + name).classList.add('active');
   el.classList.add('active');
   if (name === 'history') loadHistory();
+  // v2.6.0: resize charts เมื่อ tab เปลี่ยน
+  setTimeout(() => {
+    [rtChart, histTempChart, histHumiChart, histWifiChart, histRainChart].forEach(ch => {
+      if (ch) try { ch.resize(); } catch(e) {}
+    });
+  }, 50);
 }
 
 // v0.3.1: circular buffer แทน innerHTML accumulation
@@ -1110,6 +1232,35 @@ function setFont(size) {
   const activeBtn = document.getElementById('fs-'+savedFont);
   if (activeBtn) activeBtn.classList.add('active');
 })();
+
+
+// ════════════════════════════════════════
+//  v2.6.0: Toast Notification
+// ════════════════════════════════════════
+function showToast(msg, type='info', duration=3500) {
+  const icons = { success:'✓', error:'✕', warn:'⚠', info:'ℹ' };
+  const container = document.getElementById('toast-container');
+  if (!container) { console.warn(msg); return; }
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = '<span class="toast-icon">' + (icons[type]||'ℹ') + '</span>'
+               + '<span class="toast-msg">' + msg + '</span>';
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 350);
+  }, duration);
+}
+
+
+// v2.6.0: Night Guard time input auto-format HH:MM
+document.addEventListener('input', function(e) {
+  if (e.target && (e.target.id === 'night-start' || e.target.id === 'night-end')) {
+    let v = e.target.value.replace(/[^0-9]/g, '');
+    if (v.length >= 3) v = v.slice(0,2) + ':' + v.slice(2,4);
+    e.target.value = v;
+  }
+});
 
 function toggleTheme() {
   document.body.classList.toggle('light');
@@ -1229,6 +1380,12 @@ function clock() {
   if (now.getHours()===0 && now.getMinutes()===0 && now.getSeconds()===0) {
     initRtChart();
   }
+  // v2.6.0: stale indicator — เปลี่ยนสีแดงถ้าไม่มีข้อมูลนาน >15 นาที
+  const mqttEl = $('last-mqtt');
+  if (mqttEl && state._lastMqttMs) {
+    const staleMin = (now - state._lastMqttMs) / 60000;
+    mqttEl.classList.toggle('stale-warn', staleMin > 15);
+  }
   // อัปเดต date bar
   const d  = now.getDate();
   const m  = now.getMonth();
@@ -1272,6 +1429,7 @@ function updateUI(d) {
   if (state.air !== null) { state.prevAir=state.air; state.prevHumi=state.humi; state.prevProd=state.prod; }
 
   const _pf = (v, fallback) => { const n = parseFloat(v); return isNaN(n) ? fallback : n; };
+  state._lastMqttMs = Date.now(); // v2.6.0: track last MQTT time
   state.air      = _pf(d.temp_air,     state.air);
   state.humi     = _pf(d.humidity,     state.humi);
   state.prod     = _pf(d.temp_product, state.prod);
@@ -1658,13 +1816,11 @@ const rtEndLabelsPlugin = {
   afterDraw(chart) {
     try {
       // อ่านจาก chart.data.datasets โดยตรง (ไม่ขึ้นกับ rtAllData global)
-      const dsColors = ['#60a5fa','#fb923c','#34d399','#ffffff'];
-      // yAxisID จาก dataset เอง หรือ fallback
-      const getAxis = (ds, i) => ds.yAxisID || (['yT','yT','yH'][i] || 'yT');
-      const datasets = chart.data.datasets.map((ds, i) => ({
+      // v2.6.0: ใช้ borderColor จาก dataset โดยตรง — ไม่ hardcode
+      const datasets = chart.data.datasets.map((ds) => ({
         data:  ds.data,
-        color: dsColors[i] || '#ffffff',
-        axis:  getAxis(ds, i),
+        color: ds.borderColor || '#ffffff',
+        axis:  ds.yAxisID    || 'yT',
       }));
       const ctx = chart.ctx;
       const ca  = chart.chartArea;
@@ -1900,11 +2056,14 @@ function initHistCharts() {
   });
 }
 
+let _rangeTimer = null;
 function setRange(h, el) {
   histRange = h;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
-  loadHistory();
+  // v2.6.0: debounce 300ms
+  if (_rangeTimer) clearTimeout(_rangeTimer);
+  _rangeTimer = setTimeout(() => { _rangeTimer = null; loadHistory(); }, 300);
 }
 
 async function loadHistory() {
@@ -1944,9 +2103,21 @@ function parseAndRenderHistory(csv) {
   const iWifi  = col('wifi');
   const iRain  = col('rain_sensor');
 
-  // คำนวณ cutoff โดย offset timezone ไทย +7 ชม.
-  const TZ_OFFSET_MS = 7 * 3600000; // UTC+7
-  const cutoffMs = Date.now() - histRange * 3600000;
+  // v2.6.0: คำนวณ cutoff จาก date picker ถ้ามี ไม่งั้นใช้ histRange
+  const TZ_OFFSET_MS = 7 * 3600000;
+  const fromEl = document.getElementById('hist-date-from');
+  const toEl   = document.getElementById('hist-date-to');
+  let cutoffMs, cutoffEndMs;
+  if (fromEl && fromEl.value) {
+    // ใช้ date picker — parse เป็น local time
+    cutoffMs    = new Date(fromEl.value + 'T00:00:00').getTime();
+    cutoffEndMs = toEl && toEl.value
+      ? new Date(toEl.value + 'T23:59:59').getTime()
+      : cutoffMs + 86400000;
+  } else {
+    cutoffMs    = Date.now() - histRange * 3600000;
+    cutoffEndMs = Date.now() + 86400000;
+  }
   const rows = [];
 
   // v0.3.0: จำกัด MAX_HIST_ROWS ป้องกัน parse CSV ทั้งหมด
@@ -2239,44 +2410,64 @@ function drawHistEndLabel(chart, data, color) {
 
 
 function updateWifiRainCharts(rows, labels, rangeH) {
-  if (!histWifiChart || !histRainChart) return;
-  // สร้าง map จาก label → avg wifi / max rain
-  // labels มาจาก renderHistCharts แล้ว ต้อง match กับ rows
-  const wifiMap = {}, rainMap = {};
+  if (!histWifiChart || !histRainChart || !labels.length) return;
+  // v2.6.0: สร้าง wifi/rain data aligned กับ labels โดยตรง
+  // ใช้ index เดียวกับที่ renderHistCharts bucket ไว้
+  const n = labels.length;
+  const wifiSum  = new Array(n).fill(0);
+  const wifiCnt  = new Array(n).fill(0);
+  const rainMax  = new Array(n).fill(0);
+
+  // สร้าง labelIndex map
+  const labelMap = {};
+  labels.forEach((lbl, i) => { labelMap[lbl] = i; });
+
   rows.forEach(r => {
-    // สร้าง label เหมือนกับที่ renderHistCharts สร้าง
+    // สร้าง key เหมือน renderHistCharts
     let key;
+    const ts = r.ts;
     if (rangeH <= 24) {
-      const h = r.ts.getHours();
-      key = String(h).padStart(2,'0') + ':' + (r.ts.getMinutes() < 30 ? '00' : '30');
+      const h = ts.getHours();
+      const m = ts.getMinutes() < 30 ? '00' : '30';
+      key = ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+      // fallback: HH:MM format
+      if (!(key in labelMap)) key = String(h).padStart(2,'0')+':'+m;
     } else if (rangeH <= 72) {
-      const h = Math.floor(r.ts.getHours()/3)*3;
-      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'}) + ' ' + String(h).padStart(2,'0')+':00';
+      const h = Math.floor(ts.getHours()/3)*3;
+      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+          + ' ' + String(h).padStart(2,'0')+':00';
     } else if (rangeH <= 168) {
-      const h = Math.floor(r.ts.getHours()/6)*6;
-      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'}) + ' ' + String(h).padStart(2,'0')+':00';
+      const h = Math.floor(ts.getHours()/6)*6;
+      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
+          + ' ' + String(h).padStart(2,'0')+':00';
     } else if (rangeH <= 720) {
-      key = r.ts.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
     } else {
-      key = r.ts.toLocaleDateString('th-TH',{month:'short'});
+      key = ts.toLocaleDateString('th-TH',{month:'short'});
     }
-    if (!wifiMap[key]) wifiMap[key] = [];
-    if (!rainMap[key]) rainMap[key] = [];
-    wifiMap[key].push(r.wifi || 0);
-    rainMap[key].push(r.rain || 0);
+    const i = labelMap[key];
+    if (i === undefined) return;
+    wifiSum[i] += (r.wifi || 0);
+    wifiCnt[i]++;
+    if (r.rain > rainMax[i]) rainMax[i] = r.rain;
   });
 
-  const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0;
-  const maxVal = arr => arr.length ? Math.max(...arr) : 0;
+  const wifiData = wifiSum.map((s,i) => wifiCnt[i] ? +(s/wifiCnt[i]).toFixed(1) : null);
 
   histWifiChart.data.labels = labels;
-  histWifiChart.data.datasets[0].data = labels.map(k => avg(wifiMap[k]||[]));
-  histWifiChart.update();
+  histWifiChart.data.datasets[0].data = wifiData;
+  histWifiChart.options.plugins.timeBg.zones =
+    (rangeH<=168) ? makeTimeZones(labels, rangeH) :
+    (rangeH>720)  ? (makeSeasonZones(labels).zones||[]) : [];
+  histWifiChart.update('none');
 
   histRainChart.data.labels = labels;
-  histRainChart.data.datasets[0].data = labels.map(k => maxVal(rainMap[k]||[]));
-  histRainChart.update();
+  histRainChart.data.datasets[0].data = rainMax;
+  histRainChart.options.plugins.timeBg.zones =
+    (rangeH<=168) ? makeTimeZones(labels, rangeH) : [];
+  histRainChart.update('none');
 }
+
 
 function toggleRawData() {
   const panel = $('raw-data-panel');
@@ -2611,7 +2802,7 @@ async function fetchWeather() {
 // โหลดข้อมูล RT ตามวันที่เลือก
 async function loadRtByDate() {
   const picker = document.getElementById('rt-date-picker');
-  if (!picker || !picker.value) { alert('กรุณาเลือกวันที่'); return; }
+  if (!picker || !picker.value) { showToast('กรุณาเลือกวันที่','warn'); return; }
   const dateStr = picker.value; // YYYY-MM-DD
   const today   = new Date().toISOString().slice(0,10);
   const isToday = dateStr === today;
@@ -2631,7 +2822,7 @@ async function loadRtByDate() {
   if (todayBtn) { todayBtn.style.color = 'var(--muted)'; todayBtn.style.borderColor = 'var(--border)'; }
 
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) {
-    alert('ยังไม่ตั้งค่า sheetsUrl ใน CFG');
+    showToast('ยังไม่ตั้งค่า sheetsUrl ใน CFG','error');
     return;
   }
   logMqtt('[Date] กำลังโหลด ' + dateStr + '...', '#60a5fa');
@@ -2703,12 +2894,12 @@ async function loadHistByDate() {
   const fromEl = document.getElementById('hist-date-from');
   const toEl   = document.getElementById('hist-date-to');
   if (!fromEl || !toEl || !fromEl.value || !toEl.value) {
-    alert('กรุณาเลือกวันเริ่มต้นและวันสิ้นสุด');
+    showToast('กรุณาเลือกวันเริ่มต้นและวันสิ้นสุด','warn');
     return;
   }
   const fromDate = fromEl.value;
   const toDate   = toEl.value;
-  if (fromDate > toDate) { alert('วันเริ่มต้นต้องน้อยกว่าวันสิ้นสุด'); return; }
+  if (fromDate > toDate) { showToast('วันเริ่มต้นต้องน้อยกว่าวันสิ้นสุด','warn'); return; }
 
   $('hist-status').textContent = 'กำลังโหลดช่วง ' + fromDate + ' ถึง ' + toDate + '...';
 
@@ -2883,8 +3074,8 @@ function setProgram(prog) {
 function sendCustom() {
   const h = parseFloat($('custom-humi').value);
   const t = parseFloat($('custom-temp').value);
-  if (isNaN(h) || h < 10 || h > 90) { alert('ความชื้น 10–90%'); return; }
-  if (isNaN(t) || t < 30 || t > 100) { alert('อุณหภูมิ 30–100°C'); return; }
+  if (isNaN(h) || h < 10 || h > 90) { showToast('ความชื้น 10–90%','warn'); return; }
+  if (isNaN(t) || t < 30 || t > 100) { showToast('อุณหภูมิ 30–100°C','warn'); return; }
   publish({ cmd: 'set_custom_humi', value: h });
   setTimeout(() => publish({ cmd: 'set_custom_max_temp', value: t }), 300);
 }
@@ -2892,7 +3083,7 @@ function sendCustom() {
 function sendNightTime() {
   const ns = $('night-start').value;
   const ne = $('night-end').value;
-  if (!ns || !ne) { alert('กรุณากรอกเวลา'); return; }
+  if (!ns || !ne) { showToast('กรุณากรอกเวลา','warn'); return; }
   publish({ cmd: 'set_night_start', value: ns });
   setTimeout(() => publish({ cmd: 'set_night_end', value: ne }), 300);
 }
@@ -2946,7 +3137,7 @@ function makePDF(title, headers, rows, filename) {
     });
     doc.save(filename);
   } catch(e) {
-    alert('PDF error: ' + e.message + '\njsPDF ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง');
+    showToast('PDF error: ' + e.message, 'error');
   }
 }
 
@@ -2968,7 +3159,7 @@ function exportRealtimeCSV() {
       ].join(','));
     }
   });
-  if (rows.length <= 1) { alert('ไม่มีข้อมูลวันนี้'); return; }
+  if (rows.length <= 1) { showToast('ไม่มีข้อมูลวันนี้','info'); return; }
   downloadFile('Realtime_' + dateStamp() + '.csv', rows.join('\n'), 'text/csv');
   logMqtt('[Export] Realtime CSV ' + (rows.length-1) + ' rows', '#34d399');
 }
@@ -2992,7 +3183,7 @@ async function exportHistoryCSV() {
     downloadFile('RawData_' + rangeLabel + '_' + dateStamp() + '.csv', csv, 'text/csv');
     logMqtt('[Export] History CSV ' + dataRows.length + ' rows', '#34d399');
   } catch(e) {
-    alert('Export ไม่สำเร็จ: ' + e.message);
+    showToast('Export ไม่สำเร็จ: ' + e.message, 'error');
   }
   if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9,14 12,17 15,14"/></svg>CSV'; btn.disabled = false; }
 }
@@ -3023,7 +3214,7 @@ async function exportHistoryPDF() {
     );
     logMqtt('[Export] History PDF ' + rows.length + ' rows', '#34d399');
   } catch(e) {
-    alert('Export ไม่สำเร็จ: ' + e.message);
+    showToast('Export ไม่สำเร็จ: ' + e.message, 'error');
   }
   if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>PDF'; btn.disabled = false; }
 }
@@ -3036,7 +3227,7 @@ async function exportJobCSV() {
     const res  = await fetch(CFG.gasWeatherUrl + '?action=get_jobs&limit=500');
     const json = await res.json();
     const jobs = json.jobs || [];
-    if (!jobs.length) { alert('ไม่มีข้อมูลงานอบ'); return; }
+    if (!jobs.length) { showToast('ไม่มีข้อมูลงานอบ','info'); return; }
     const headers = ['หมายเลขงาน','ชื่อสินค้า','เวลาเข้าอบ','น้ำหนักเข้า','หน่วย',
                      'เวลาออก','น้ำหนักออก','หน่วยออก','เวลาอบ','สูญเสีย(%)','สถานะ'];
     const rows = jobs.map(j => [
@@ -3048,7 +3239,7 @@ async function exportJobCSV() {
       headers.join(',') + '\n' + rows.join('\n'), 'text/csv');
     logMqtt('[Export] JobLog CSV ' + jobs.length + ' rows', '#34d399');
   } catch(e) {
-    alert('Export ไม่สำเร็จ: ' + e.message);
+    showToast('Export ไม่สำเร็จ: ' + e.message, 'error');
   }
   if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9,14 12,17 15,14"/></svg>CSV'; btn.disabled = false; }
 }
@@ -3061,7 +3252,7 @@ async function exportJobPDF() {
     const res  = await fetch(CFG.gasWeatherUrl + '?action=get_jobs&limit=500');
     const json = await res.json();
     const jobs = json.jobs || [];
-    if (!jobs.length) { alert('ไม่มีข้อมูลงานอบ'); return; }
+    if (!jobs.length) { showToast('ไม่มีข้อมูลงานอบ','info'); return; }
     const headers = ['หมายเลข','สินค้า','เข้าอบ','น้ำหนักเข้า','เวลาออก','น้ำหนักออก','เวลาอบ','สูญเสีย','สถานะ'];
     const rows = jobs.map(j => [
       j.jobNo, j.product, j.timeIn,
@@ -3079,7 +3270,7 @@ async function exportJobPDF() {
     );
     logMqtt('[Export] JobLog PDF ' + jobs.length + ' rows', '#34d399');
   } catch(e) {
-    alert('Export ไม่สำเร็จ: ' + e.message);
+    showToast('Export ไม่สำเร็จ: ' + e.message, 'error');
   }
   if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>PDF'; btn.disabled = false; }
 }
@@ -3127,10 +3318,16 @@ try { activeJob = JSON.parse(localStorage.getItem('activeJob') || 'null'); } cat
 // รายการงานที่กำลังอบ (โหลดจาก Sheets)
 var openJobsList = [];
 
+let _jobsRefreshTimer = null;
 function initJobPage() {
   updateJobStatus();
   loadJobLog();
-  loadOpenJobs(); // โหลด dropdown งานที่ยังไม่ปิด
+  loadOpenJobs();
+  // v2.6.0: auto-refresh dropdown ทุก 30s
+  if (_jobsRefreshTimer) clearInterval(_jobsRefreshTimer);
+  _jobsRefreshTimer = setInterval(() => {
+    if (document.querySelector('#page-jobs.active')) loadOpenJobs();
+  }, 30000);
 }
 
 function updateJobStatus() {
@@ -3235,8 +3432,8 @@ async function openJob() {
   const program  = $('job-program-sel').value;
   const note     = $('job-note-open').value.trim();
 
-  if (!product)  { alert('กรุณาเลือกหรือระบุชื่อสินค้า'); return; }
-  if (isNaN(weightIn) || weightIn <= 0) { alert('กรุณากรอกน้ำหนักเข้า'); return; }
+  if (!product)  { showToast('กรุณาเลือกหรือระบุชื่อสินค้า','warn'); return; }
+  if (isNaN(weightIn) || weightIn <= 0) { showToast('กรุณากรอกน้ำหนักเข้า','warn'); return; }
 
   const btn = document.querySelector('.job-btn.open');
   btn.disabled = true;
@@ -3265,7 +3462,7 @@ async function openJob() {
     await loadOpenJobs();
     await loadJobLog();
   } catch(e) {
-    alert('บันทึกไม่สำเร็จ: ' + e.message);
+    showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
   }
   btn.disabled = false;
   btn.textContent = 'เริ่มอบ — บันทึกเวลาเข้า';
@@ -3278,11 +3475,11 @@ async function closeJob() {
   const unitOut   = $('job-unit-out') ? $('job-unit-out').value : 'กก.';
   const note      = $('job-note-close').value.trim();
 
-  if (!jobNo) { alert('กรุณาเลือกงานที่ต้องการปิด'); return; }
-  if (isNaN(weightOut) || weightOut <= 0) { alert('กรุณากรอกน้ำหนักออก'); return; }
+  if (!jobNo) { showToast('กรุณาเลือกงานที่ต้องการปิด','warn'); return; }
+  if (isNaN(weightOut) || weightOut <= 0) { showToast('กรุณากรอกน้ำหนักออก','warn'); return; }
 
   const job = openJobsList.find(j => j.jobNo === jobNo);
-  if (!job) { alert('ไม่พบข้อมูลงาน ' + jobNo); return; }
+  if (!job) { showToast('ไม่พบข้อมูลงาน ' + jobNo, 'warn'); return; }
 
   const btn = $('btn-close-job');
   btn.disabled = true;
@@ -3334,7 +3531,7 @@ async function closeJob() {
     await loadOpenJobs();
     await loadJobLog();
   } catch(e) {
-    alert('บันทึกไม่สำเร็จ: ' + e.message);
+    showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
   }
   btn.disabled = false;
   btn.textContent = 'จบการอบ — บันทึกเวลาออก';
