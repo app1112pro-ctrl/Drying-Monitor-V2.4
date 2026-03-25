@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.4.1</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.5.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -423,7 +423,7 @@
       <div>
         <div class="header-title" style="font-size:clamp(12px,1.4vw,15px);line-height:1.3;color:var(--text);font-weight:700">โรงอบไล่ความชื้นพลังงานแสงอาทิตย์</div>
         <div style="font-size:clamp(11px,1.2vw,13px);color:var(--air);font-weight:600;margin-top:1px">รสมือจันท์ · จ.จันทบุรี</div>
-        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.5.0 · ESP32 + HiveMQ + Google Sheets</div>
+        <div class="header-sub" style="margin-top:2px" title="v0.3.0 — Phase 1: MQTT leak fix, MAX_HIST_ROWS, Visibility API, reference opt" title="v2.5.0 — RT chart fix, resource management, throttle">v2.5.1 · ESP32 + HiveMQ + Google Sheets</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
@@ -1658,12 +1658,13 @@ const rtEndLabelsPlugin = {
   afterDraw(chart) {
     try {
       // อ่านจาก chart.data.datasets โดยตรง (ไม่ขึ้นกับ rtAllData global)
-      const dsColors = ['#60a5fa','#34d399','#fb923c'];
-      const dsAxes   = ['yT','yH','yT'];
+      const dsColors = ['#60a5fa','#fb923c','#34d399','#ffffff'];
+      // yAxisID จาก dataset เอง หรือ fallback
+      const getAxis = (ds, i) => ds.yAxisID || (['yT','yT','yH'][i] || 'yT');
       const datasets = chart.data.datasets.map((ds, i) => ({
         data:  ds.data,
         color: dsColors[i] || '#ffffff',
-        axis:  dsAxes[i]   || 'yT',
+        axis:  getAxis(ds, i),
       }));
       const ctx = chart.ctx;
       const ca  = chart.chartArea;
@@ -1811,18 +1812,20 @@ function initHistCharts() {
   histTempChart = new Chart($('chart-hist-temp').getContext('2d'), {
     type:'line',
     data:{ labels:[], datasets:[
-      { label:'T.อากาศ', data:[], borderColor:'#60a5fa', borderWidth:1.5,
-        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yT' },
-      { label:'T.ผลิตภัณฑ์', data:[], borderColor:'#fb923c', borderWidth:1.5,
-        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yT',
-        borderDash:[4,2] },
-      { label:'ความชื้น', data:[], borderColor:'#34d399', borderWidth:1.5,
-        pointRadius:0, pointHoverRadius:4, tension:.3, fill:false, spanGaps:true, yAxisID:'yH' },
+      { label:'T.อากาศ',      data:[], borderColor:'#60a5fa', backgroundColor:'#60a5fa18',
+        borderWidth:2, tension:.4, fill:false, spanGaps:true,
+        pointRadius:0, pointHoverRadius:4, yAxisID:'yT' },
+      { label:'T.ผลิตภัณฑ์', data:[], borderColor:'#fb923c', backgroundColor:'#fb923c18',
+        borderWidth:2, tension:.4, fill:false, spanGaps:true,
+        pointRadius:0, pointHoverRadius:4, yAxisID:'yT' },
+      { label:'ความชื้น',     data:[], borderColor:'#34d399', backgroundColor:'#34d39918',
+        borderWidth:2, tension:.4, fill:false, spanGaps:true,
+        pointRadius:0, pointHoverRadius:4, yAxisID:'yH' },
     ]},
     options:{
       responsive:true, animation:false, spanGaps:true,
       interaction:{ mode:'index', intersect:false },
-      plugins: basePlugins,
+      plugins: { ...basePlugins, endLabels:{} },
       scales:{
         x: xScaleCfg,
         yT:{ type:'linear', position:'left',  min:15, max:75,
@@ -2375,34 +2378,51 @@ function parseTimestamp(tsStr) {
   return isNaN(dt) ? null : dt;
 }
 
-async function loadTodayIntoRtChart() {
+
+// v2.5.1: reset เฉพาะ data array ไม่ destroy chart
+function resetRtData() {
+  const empty = () => Array(144).fill(null);
+  rtAllData.air  = empty();
+  rtAllData.humi = empty();
+  rtAllData.prod = empty();
+  if (!rtChart) return;
+  rtChart.data.datasets[0].data = rtAllData.air;
+  rtChart.data.datasets[1].data = rtAllData.humi;
+  rtChart.data.datasets[2].data = rtAllData.prod;
+  rtChart.update('none');
+}
+
+async function loadTodayIntoRtChart(retryCount = 0) {
+  const MAX_RETRY = 3;
+  const RETRY_DELAY_MS = 3000;
+
   if (!CFG.sheetsUrl || CFG.sheetsUrl.includes('YOUR_')) return;
   try {
-    const res   = await fetch(CFG.sheetsUrl + '&t=' + Date.now()); // bust cache
+    const res   = await fetch(CFG.sheetsUrl + '&t=' + Date.now());
     const text  = await res.text();
     const lines = text.trim().split('\n');
-    if (lines.length < 2) { logMqtt('[Today] CSV ว่างเปล่า', '#fbbf24'); return; }
+    if (lines.length < 2) {
+      logMqtt('[Today] CSV ว่างเปล่า', '#fbbf24');
+      return;
+    }
 
     const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
-    const col     = name => headers.indexOf(name);
-    const iTime   = col('time');
-    const iAir    = col('temp_air');
-    const iHumi   = col('humidity');
-    const iProd   = col('temp_product');
+    const col   = name => headers.indexOf(name);
+    const iTime = col('time');
+    const iAir  = col('temp_air');
+    const iHumi = col('humidity');
+    const iProd = col('temp_product');
+    if (iTime < 0) { logMqtt('[Today] ไม่พบ column time', '#f87171'); return; }
 
-    if (iTime < 0) { logMqtt('[Today] ไม่พบ column time ใน CSV', '#f87171'); return; }
-
-    // ดึงวันนี้แบบ local (ไทย)
     const now      = new Date();
     const todayStr = now.getFullYear() + '-'
       + String(now.getMonth()+1).padStart(2,'0') + '-'
       + String(now.getDate()).padStart(2,'0');
 
-    // reset slots วันนี้ก่อนเติม
-    const emptyArr = () => Array(144).fill(null);
-    rtAllData.air  = emptyArr();
-    rtAllData.humi = emptyArr();
-    rtAllData.prod = emptyArr();
+    // reset data ก่อนเติม
+    rtAllData.air  = Array(144).fill(null);
+    rtAllData.humi = Array(144).fill(null);
+    rtAllData.prod = Array(144).fill(null);
 
     let count = 0;
     for (let i = 1; i < lines.length; i++) {
@@ -2410,19 +2430,11 @@ async function loadTodayIntoRtChart() {
       if (!line) continue;
       const cols  = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
       const tsStr = cols[iTime];
-      if (!tsStr) continue;
-
-      // match วันที่ (รองรับ "2026-03-25 07:30" และ "2026-03-25T07:30")
-      const datepart = tsStr.slice(0, 10);
-      if (datepart !== todayStr) continue;
-
-      // parse เวลา
+      if (!tsStr || tsStr.slice(0,10) !== todayStr) continue;
       const dt = parseTimestamp(tsStr);
       if (!dt) continue;
       const slot = dt.getHours() * 6 + Math.floor(dt.getMinutes() / 10);
       if (slot < 0 || slot > 143) continue;
-
-      // เติม slot — เว้นว่างถ้าไม่มีค่า (null)
       const air  = parseFloat(cols[iAir]);
       const humi = parseFloat(cols[iHumi]);
       const prod = parseFloat(cols[iProd]);
@@ -2432,21 +2444,13 @@ async function loadTodayIntoRtChart() {
       count++;
     }
 
-    // debug: แสดง 1st row ที่ match
     if (count === 0) {
-      // หา row ล่าสุดเพื่อ debug
-      for (let j = lines.length-1; j >= Math.max(1, lines.length-3); j--) {
-        const c = lines[j].split(',')[0];
-        if (c) { logMqtt('[Today] ตัวอย่าง row ล่าสุด: ' + c.replace(/"/g,''), '#fbbf24'); break; }
-      }
-      logMqtt('[Today] ไม่พบวันที่ ' + todayStr + ' — ตรวจ format ใน Sheets', '#f87171');
-    } else {
-      logMqtt('[Today] โหลดสำเร็จ ' + count + ' จุด (' + todayStr + ')', '#34d399');
+      logMqtt('[Today] ไม่พบข้อมูล ' + todayStr, '#fbbf24');
+      return;
     }
 
+    logMqtt('[Today] โหลดสำเร็จ ' + count + ' จุด (' + todayStr + ')', '#34d399');
     if (!rtChart) return;
-
-    // บอก Chart.js ว่า data เปลี่ยน (ต้อง re-assign เพราะ reference เดิม)
     rtChart.data.datasets[0].data = rtAllData.air;
     rtChart.data.datasets[1].data = rtAllData.humi;
     rtChart.data.datasets[2].data = rtAllData.prod;
@@ -2455,9 +2459,16 @@ async function loadTodayIntoRtChart() {
     rtChart.update('none');
 
   } catch(e) {
-    logMqtt('[Today] error: ' + e.message, '#f87171');
+    if (retryCount < MAX_RETRY) {
+      const next = retryCount + 1;
+      logMqtt('[Today] fetch ล้มเหลว ลองใหม่ครั้งที่ ' + next + '/' + MAX_RETRY + '...', '#fbbf24');
+      setTimeout(() => loadTodayIntoRtChart(next), RETRY_DELAY_MS);
+    } else {
+      logMqtt('[Today] ล้มเหลว ' + MAX_RETRY + ' ครั้ง: ' + e.message, '#f87171');
+    }
   }
 }
+
 
 
 
@@ -2479,6 +2490,7 @@ async function fetchWeatherDirect() {
       if (data) {
         weatherState = { ...data, lat: LAT, lon: LON };
         updateWeatherUI();
+        updateCompare(); // v2.5.1: trigger หลัง weather update
         logMqtt("[Weather] OK: " + weatherState.temp + "°C " + weatherState.humi + "% " + (weatherState.desc||''), "#22d3ee");
         return;
       }
@@ -2570,6 +2582,7 @@ async function fetchWeather() {
       time: isNaN(tsVal) ? new Date().toLocaleTimeString('th-TH') : tsVal.toLocaleTimeString('th-TH'),
     };
     updateWeatherUI();
+        updateCompare(); // v2.5.1
   } catch(e) {
     console.warn('Weather fetch failed:', e);
   }
@@ -2670,16 +2683,19 @@ async function loadRtByDate() {
 
 // รีเซ็ต RT กลับวันนี้
 async function resetRtToday() {
-  const today = new Date().toISOString().slice(0,10);
+  const now = new Date();
+  const todayLocal = now.getFullYear() + '-'
+    + String(now.getMonth()+1).padStart(2,'0') + '-'
+    + String(now.getDate()).padStart(2,'0');
   const picker = document.getElementById('rt-date-picker');
-  if (picker) picker.value = today;
+  if (picker) picker.value = todayLocal;
   const titleEl  = document.getElementById('rt-chart-title');
   const todayBtn = document.getElementById('btn-rt-today');
   if (titleEl) titleEl.textContent = 'ปัจจุบัน';
   if (todayBtn) { todayBtn.style.color = 'var(--air)'; todayBtn.style.borderColor = 'var(--air)'; }
-  initRtChart(); // reset slots
-  await loadTodayIntoRtChart(); // โหลดวันนี้จาก Sheets
-  logMqtt('[RT] รีเซ็ตกลับวันนี้แล้ว', '#34d399');
+  // v2.5.1: ใช้ resetRtData() แทน initRtChart() เพื่อไม่ destroy chart
+  resetRtData();
+  await loadTodayIntoRtChart(); // โหลดวันนี้ พร้อม retry อัตโนมัติ
 }
 
 // โหลด History ตามช่วงวันที่เลือก
@@ -3084,14 +3100,14 @@ document.addEventListener('visibilitychange', () => {
   } else {
     pauseChartUpdates = false;
     logMqtt('[Visibility] กลับมาดูหน้าจอ — sync ข้อมูล', '#34d399');
-    // sync ข้อมูลล่าสุดตอนกลับมา
+    // v2.5.1: delay 1s ให้ browser stabilize ก่อน fetch
     setTimeout(() => {
-      if (rtChart) loadTodayIntoRtChart();
-    }, 500);
+      if (rtChart) loadTodayIntoRtChart(); // มี retry อัตโนมัติ
+    }, 1000);
     // reconnect MQTT ถ้าหลุด
     if (!mqttClient || mqttClient.disconnected) {
       mqttReconnectDelay = 5000;
-      connectMQTT();
+      setTimeout(() => connectMQTT(), 1500); // delay ก่อน reconnect ด้วย
     }
   }
 });
