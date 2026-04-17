@@ -1133,6 +1133,8 @@ const CFG = {
   sheetsUrl:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=0&single=true&output=csv',
   // Daily Sheet CSV (gid=1277158375) — ใช้สำหรับ 30 วัน
   dailyUrl:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=1277158375&single=true&output=csv',
+  // Monthly Sheet CSV (gid=361186813) — ใช้สำหรับ 6 เดือน / 12 เดือน
+  monthlyUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=361186813&single=true&output=csv',
   // Weather sheet URL (WeatherData sheet)
   weatherUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=1375045143&single=true&output=csv',
 };
@@ -2107,14 +2109,19 @@ async function loadHistory() {
   }
 
   // เลือก source URL ตาม histRange
-  // 7 วัน (168h) → RawData  |  30 วัน (720h) → Daily Sheet
-  const use30d = (histRange > 168) && CFG.dailyUrl;
-  const srcUrl = use30d ? CFG.dailyUrl : CFG.sheetsUrl;
+  // ≤168h (7วัน) → RawData | ≤720h (30วัน) → Daily | >720h (6/12เดือน) → Monthly
+  const useMonthly = (histRange > 720) && CFG.monthlyUrl;
+  const use30d     = (histRange > 168) && !useMonthly && CFG.dailyUrl;
+  const srcUrl     = useMonthly ? CFG.monthlyUrl
+                   : use30d    ? CFG.dailyUrl
+                   : CFG.sheetsUrl;
 
   try {
     const res  = await fetch(srcUrl);
     const text = await res.text();
-    if (use30d) {
+    if (useMonthly) {
+      parseAndRenderMonthly(text);
+    } else if (use30d) {
       parseAndRenderDaily(text);
     } else {
       parseAndRenderHistory(text);
@@ -2127,7 +2134,112 @@ async function loadHistory() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  parseAndRenderDaily — อ่าน Daily Sheet CSV แล้ว render กราฟ
+//  parseAndRenderMonthly — อ่าน Monthly Sheet CSV แล้ว render กราฟ
+//  ใช้สำหรับ histRange > 720 (6 เดือน / 12 เดือน)
+//  Monthly columns: month, day_tair_avg, day_humi_avg, day_tprod_avg,
+//                   night_tair_avg, night_humi_avg, night_tprod_avg, ...
+// ─────────────────────────────────────────────────────────────
+function parseAndRenderMonthly(csv) {
+  const lines = csv.trim().split('\n');
+  if (lines.length < 2) {
+    $('hist-status').textContent = 'Monthly Sheet ยังไม่มีข้อมูล — รอ aggregateMonthly รันวันที่ 1 ของเดือน';
+    return;
+  }
+
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  const col = name => headers.indexOf(name);
+
+  const iMonth   = col('month');
+  const iDAir    = col('day_tair_avg');
+  const iDHumi   = col('day_humi_avg');
+  const iDProd   = col('day_tprod_avg');
+  const iNAir    = col('night_tair_avg');
+  const iNHumi   = col('night_humi_avg');
+  const iNProd   = col('night_tprod_avg');
+  const iDMax    = col('day_tair_max');
+  const iDMin    = col('day_tair_min');
+  const iNMax    = col('night_tair_max');
+  const iNMin    = col('night_tair_min');
+  const iRain    = col('total_rain_count');
+  const iDays    = col('days_recorded');
+
+  // จำนวนเดือนที่ต้องการตาม histRange
+  const maxMonths = histRange <= 4380 ? 6 : 12;
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const c = lines[i].split(',').map(x => x.replace(/^"|"$/g,'').trim());
+    const monthStr = iMonth >= 0 ? c[iMonth] : c[0]; // "2026-03"
+    if (!monthStr || monthStr.length < 7) continue;
+
+    // แปลง "yyyy-MM" → Date วันที่ 15 ของเดือน (กลางเดือน)
+    const ts = new Date(monthStr + '-15T12:00:00');
+    if (isNaN(ts.getTime())) continue;
+
+    const dAir  = parseFloat(c[iDAir])  || null;
+    const dHumi = parseFloat(c[iDHumi]) || null;
+    const dProd = parseFloat(c[iDProd]) || null;
+    const nAir  = parseFloat(c[iNAir])  || null;
+    const nHumi = parseFloat(c[iNHumi]) || null;
+    const nProd = parseFloat(c[iNProd]) || null;
+
+    const avgPair = (a, b) => {
+      if (a !== null && b !== null) return Math.round(((a + b) / 2) * 10) / 10;
+      return a !== null ? a : b;
+    };
+
+    rows.push({
+      ts,
+      time:    monthStr,
+      air:     avgPair(dAir,  nAir),
+      humi:    avgPair(dHumi, nHumi),
+      prod:    avgPair(dProd, nProd),
+      fan:  '', prog: '', state: '', mode: '', wifi: 0,
+      rain:    iRain >= 0 ? (parseInt(c[iRain]) > 0 ? 1 : 0) : 0,
+      // เก็บแยกสำหรับ table
+      dayAir: dAir, nightAir: nAir,
+      dayHumi: dHumi, nightHumi: nHumi,
+      dayProd: dProd, nightProd: nProd,
+      dayMax:   iDMax >= 0 ? (parseFloat(c[iDMax]) || null) : null,
+      dayMin:   iDMin >= 0 ? (parseFloat(c[iDMin]) || null) : null,
+      nightMax: iNMax >= 0 ? (parseFloat(c[iNMax]) || null) : null,
+      nightMin: iNMin >= 0 ? (parseFloat(c[iNMin]) || null) : null,
+      rainCount: iRain >= 0 ? (parseInt(c[iRain]) || 0) : 0,
+      daysRecorded: iDays >= 0 ? (parseInt(c[iDays]) || 0) : 0,
+    });
+  }
+
+  if (!rows.length) {
+    $('hist-status').textContent = 'Monthly Sheet ยังไม่มีข้อมูล — รอ aggregateMonthly รันวันที่ 1 ของเดือน';
+    return;
+  }
+
+  // ใช้แค่ maxMonths ล่าสุด
+  const sliced = rows.slice(-maxMonths);
+  renderHistCharts(sliced);
+  renderHistTableMonthly(sliced.slice().reverse());
+  renderHistStats(sliced);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  renderHistTableMonthly — แสดงตาราง Monthly Sheet
+// ─────────────────────────────────────────────────────────────
+function renderHistTableMonthly(rows) {
+  const tb = document.getElementById('hist-table-body');
+  if (!tb) return;
+  tb.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.time}</td>
+      <td style="color:var(--air)">${r.dayAir !== null ? r.dayAir : '-'} / ${r.nightAir !== null ? r.nightAir : '-'}</td>
+      <td style="color:var(--humi)">${r.dayHumi !== null ? r.dayHumi : '-'} / ${r.nightHumi !== null ? r.nightHumi : '-'}</td>
+      <td style="color:var(--prod)">${r.dayProd !== null ? r.dayProd : '-'} / ${r.nightProd !== null ? r.nightProd : '-'}</td>
+      <td>${r.daysRecorded > 0 ? r.daysRecorded + ' วัน' : '-'}</td>
+      <td style="color:${r.rainCount > 0 ? 'var(--rain)' : 'var(--muted)'}">${r.rainCount > 0 ? r.rainCount + ' ครั้ง' : '-'}</td>
+    </tr>`).join('');
+}
+
+
 //  ใช้สำหรับ histRange > 168 (30 วัน)
 //  Daily columns: date, day_tair_avg, day_humi_avg, day_tprod_avg,
 //                 night_tair_avg, night_humi_avg, night_tprod_avg, ...
