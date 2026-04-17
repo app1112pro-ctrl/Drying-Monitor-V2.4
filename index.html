@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.5</title>
+<title>โรงอบไล่ความชื้นพลังงานแสงอาทิตย์ รสมือจันท์ | v2.6.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -912,8 +912,8 @@
     </div>
 
     <!-- WiFi + Rain charts -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div class="hist-chart-wrap">
+    <div id="wifi-rain-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div id="wifi-chart-wrap" class="hist-chart-wrap">
         <div class="card-title">สัญญาณ WiFi (ระดับ)</div>
         <canvas id="chart-hist-wifi" style="max-height:140px"></canvas>
       </div>
@@ -2661,65 +2661,83 @@ function drawHistEndLabel(chart, data, color) {
 
 function updateWifiRainCharts(rows, labels, rangeH) {
   if (!histWifiChart || !histRainChart || !labels.length) return;
-  // v2.6.0: สร้าง wifi/rain data aligned กับ labels โดยตรง
-  // ใช้ index เดียวกับที่ renderHistCharts bucket ไว้
-  const n = labels.length;
-  // v2.6.1 Fix: ใช้ fill(null) แทน fill(0) เพื่อไม่แสดง slot ที่ไม่มีข้อมูล
-  const wifiSum  = new Array(n).fill(0);
-  const wifiCnt  = new Array(n).fill(0);
-  const rainMax  = new Array(n).fill(null); // null = ไม่มีข้อมูล
 
-  // สร้าง labelIndex map
+  // v2.6.5 Fix BUG1: Daily/Monthly ไม่มีข้อมูล wifi จริง → ซ่อน WiFi chart
+  // แสดงเฉพาะ rangeH ≤ 168 (7 วัน) ที่มาจาก RawData เท่านั้น
+  const wifiWrap = document.getElementById('wifi-chart-wrap');
+  const rainGrid = document.getElementById('wifi-rain-grid');
+  const showWifi = rangeH <= 168;
+  if (wifiWrap) wifiWrap.style.display = showWifi ? '' : 'none';
+  // ถ้าซ่อน wifi → rain chart ขยายเต็มแถว
+  if (rainGrid) rainGrid.style.gridTemplateColumns = showWifi ? '1fr 1fr' : '1fr';
+
+  const n = labels.length;
+  const wifiSum = new Array(n).fill(0);
+  const wifiCnt = new Array(n).fill(0);
+  const rainMax = new Array(n).fill(null);
+
+  // v2.6.5 Fix BUG2+BUG3: สร้าง labelMap จาก labels ที่ renderHistCharts สร้างไว้แล้ว
+  // แล้วสร้าง key จาก r.ts ด้วย format เดียวกัน 100%
   const labelMap = {};
   labels.forEach((lbl, i) => { labelMap[lbl] = i; });
 
   rows.forEach(r => {
-    // สร้าง key เหมือน renderHistCharts
-    let key;
     const ts = r.ts;
+    let key;
+
     if (rangeH <= 24) {
-      const h = ts.getHours();
-      const m = ts.getMinutes() < 30 ? '00' : '30';
-      key = ts.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-      // fallback: HH:MM format
-      if (!(key in labelMap)) key = String(h).padStart(2,'0')+':'+m;
+      // renderHistCharts ใช้ String(h).padStart(2,'0')+':00' เป็น bucket key
+      // labels = Object.keys(buckets) = "00:00","01:00",...,"23:00"
+      key = String(ts.getHours()).padStart(2,'0') + ':00';
+
     } else if (rangeH <= 72) {
-      const h = Math.floor(ts.getHours()/3)*3;
-      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
-          + ' ' + String(h).padStart(2,'0')+':00';
+      // renderHistCharts: toLocaleDateString(th-TH,{day,month:numeric}) + ' HH:00' (step 3h)
+      const slotH = Math.floor(ts.getHours() / 3) * 3;
+      key = ts.toLocaleDateString('th-TH', {day:'numeric', month:'numeric'})
+          + ' ' + String(slotH).padStart(2,'0') + ':00';
+
     } else if (rangeH <= 168) {
-      const h = Math.floor(ts.getHours()/6)*6;
-      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'numeric'})
-          + ' ' + String(h).padStart(2,'0')+':00';
+      // renderHistCharts: toLocaleDateString(th-TH,{day,month:numeric}) + ' HH:00' (step 6h)
+      const slotH = Math.floor(ts.getHours() / 6) * 6;
+      key = ts.toLocaleDateString('th-TH', {day:'numeric', month:'numeric'})
+          + ' ' + String(slotH).padStart(2,'0') + ':00';
+
     } else if (rangeH <= 720) {
-      key = ts.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+      // renderHistCharts 30 วัน: toLocaleDateString(th-TH,{day:numeric,month:short})
+      // ใช้ local time เหมือนกัน → key ตรงแน่นอน
+      key = ts.toLocaleDateString('th-TH', {day:'numeric', month:'short'});
+
     } else {
-      key = ts.toLocaleDateString('th-TH',{month:'short'});
+      // renderHistCharts 6/12 เดือน: toLocaleDateString(th-TH,{month:short})
+      key = ts.toLocaleDateString('th-TH', {month:'short'});
     }
+
     const i = labelMap[key];
     if (i === undefined) return;
-    wifiSum[i] += (r.wifi || 0);
-    wifiCnt[i]++;
-    // v2.6.1 Fix: rain max — เริ่มต้น null แล้วค่อยเติม
+
+    if (showWifi) {
+      wifiSum[i] += (r.wifi || 0);
+      wifiCnt[i]++;
+    }
     if (rainMax[i] === null) rainMax[i] = r.rain;
     else if (r.rain > rainMax[i]) rainMax[i] = r.rain;
   });
 
-  // v2.6.1 Fix: null สำหรับ slot ที่ไม่มีข้อมูล (ไม่ใช่ 0)
-  const wifiData = wifiSum.map((s,i) => wifiCnt[i] > 0 ? +(s/wifiCnt[i]).toFixed(1) : null);
+  // WiFi chart (เฉพาะ ≤168h)
+  if (showWifi) {
+    const wifiData = wifiSum.map((s,i) => wifiCnt[i] > 0 ? +(s/wifiCnt[i]).toFixed(1) : null);
+    histWifiChart.data.labels = labels;
+    histWifiChart.data.datasets[0].data = wifiData;
+    histWifiChart.options.plugins.timeBg.zones = makeTimeZones(labels, rangeH);
+    histWifiChart.update('none');
+  }
 
-  histWifiChart.data.labels = labels;
-  // v2.6.1 Fix: null จะไม่วาดแท่งในกราฟ bar
-  histWifiChart.data.datasets[0].data = wifiData;
-  histWifiChart.options.plugins.timeBg.zones =
-    (rangeH<=168) ? makeTimeZones(labels, rangeH) :
-    (rangeH>720)  ? (makeSeasonZones(labels).zones||[]) : [];
-  histWifiChart.update('none');
-
+  // Rain chart (ทุก range)
   histRainChart.data.labels = labels;
   histRainChart.data.datasets[0].data = rainMax;
   histRainChart.options.plugins.timeBg.zones =
-    (rangeH<=168) ? makeTimeZones(labels, rangeH) : [];
+    (rangeH <= 168) ? makeTimeZones(labels, rangeH)
+    : (rangeH > 720) ? (makeSeasonZones(labels).zones || []) : [];
   histRainChart.update('none');
 }
 
