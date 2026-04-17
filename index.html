@@ -1131,6 +1131,8 @@ const CFG = {
   gasWeatherUrl: 'https://script.google.com/macros/s/AKfycbw6g9gaHBuQ1_QlgG92i2rMHVrgBUEn6-TA7p2xydHVnGE8wLWVix0V_5Zv5YXo7paOnw/exec',
   // Google Sheets CSV export URL (File > Share > Publish to web > CSV)
   sheetsUrl:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=0&single=true&output=csv',
+  // Daily Sheet CSV (gid=1277158375) — ใช้สำหรับ 30 วัน
+  dailyUrl:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=1277158375&single=true&output=csv',
   // Weather sheet URL (WeatherData sheet)
   weatherUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQfgvb_1EPTbTy0KG-kfokJ21iyVbpdpL9S4Li4ER_QvuhG_umWP-EyPysw0E7E2UF8FWbd6XIj-R4N/pub?gid=1375045143&single=true&output=csv',
 };
@@ -2103,15 +2105,121 @@ async function loadHistory() {
     loadDemoHistory();
     return;
   }
+
+  // เลือก source URL ตาม histRange
+  // 7 วัน (168h) → RawData  |  30 วัน (720h) → Daily Sheet
+  const use30d = (histRange > 168) && CFG.dailyUrl;
+  const srcUrl = use30d ? CFG.dailyUrl : CFG.sheetsUrl;
+
   try {
-    const res  = await fetch(CFG.sheetsUrl);
+    const res  = await fetch(srcUrl);
     const text = await res.text();
-    parseAndRenderHistory(text);
+    if (use30d) {
+      parseAndRenderDaily(text);
+    } else {
+      parseAndRenderHistory(text);
+    }
     $('hist-status').textContent = 'โหลดสำเร็จ · ' + new Date().toLocaleTimeString('th-TH');
   } catch(e) {
     $('hist-status').textContent = 'โหลดไม่ได้: ' + e.message;
     loadDemoHistory();
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  parseAndRenderDaily — อ่าน Daily Sheet CSV แล้ว render กราฟ
+//  ใช้สำหรับ histRange > 168 (30 วัน)
+//  Daily columns: date, day_tair_avg, day_humi_avg, day_tprod_avg,
+//                 night_tair_avg, night_humi_avg, night_tprod_avg, ...
+// ─────────────────────────────────────────────────────────────
+function parseAndRenderDaily(csv) {
+  const lines = csv.trim().split('\n');
+  if (lines.length < 2) { $('hist-status').textContent = 'ไม่มีข้อมูลใน Daily Sheet'; return; }
+
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  const col = name => headers.indexOf(name);
+
+  const iDate    = col('date');
+  const iDAir    = col('day_tair_avg');
+  const iDHumi   = col('day_humi_avg');
+  const iDProd   = col('day_tprod_avg');
+  const iNAir    = col('night_tair_avg');
+  const iNHumi   = col('night_humi_avg');
+  const iNProd   = col('night_tprod_avg');
+  const iRain    = col('rain_count');
+  const iProg    = col('program');
+  const iDayOk   = col('day_ok');
+  const iNightOk = col('night_ok');
+
+  // แปลงแต่ละ row เป็น object ที่ renderHistCharts รับได้
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const c = lines[i].split(',').map(x => x.replace(/^"|"$/g,'').trim());
+    const dateStr = iDate >= 0 ? c[iDate] : c[0];
+    if (!dateStr || dateStr === '0000-00-00') continue;
+
+    // แปลง "yyyy-MM-dd" → Date กลางวัน 12:00
+    const ts = new Date(dateStr + 'T12:00:00');
+    if (isNaN(ts.getTime())) continue;
+
+    // ค่ากลางวัน + กลางคืน รวมเป็น avg รายวัน
+    const dAir  = parseFloat(c[iDAir])  || null;
+    const dHumi = parseFloat(c[iDHumi]) || null;
+    const dProd = parseFloat(c[iDProd]) || null;
+    const nAir  = parseFloat(c[iNAir])  || null;
+    const nHumi = parseFloat(c[iNHumi]) || null;
+    const nProd = parseFloat(c[iNProd]) || null;
+
+    // ค่าเฉลี่ยวัน = (กลางวัน + กลางคืน) / 2 (ถ้ามีทั้งคู่)
+    const avgPair = (a, b) => {
+      if (a !== null && b !== null) return Math.round(((a + b) / 2) * 10) / 10;
+      return a !== null ? a : b;
+    };
+
+    rows.push({
+      ts,
+      time:  dateStr,
+      air:   avgPair(dAir,  nAir),
+      humi:  avgPair(dHumi, nHumi),
+      prod:  avgPair(dProd, nProd),
+      fan:   '',
+      prog:  iProg >= 0 ? (c[iProg] || '') : '',
+      state: '',
+      mode:  '',
+      wifi:  0,
+      rain:  iRain >= 0 ? (parseInt(c[iRain]) > 0 ? 1 : 0) : 0,
+      // เก็บค่ากลางวัน/คืนแยกสำหรับ table
+      dayAir: dAir, nightAir: nAir,
+      dayHumi: dHumi, nightHumi: nHumi,
+      dayProd: dProd, nightProd: nProd,
+      dayOk:   iDayOk   >= 0 ? c[iDayOk]   : '',
+      nightOk: iNightOk >= 0 ? c[iNightOk] : '',
+    });
+  }
+
+  if (!rows.length) { $('hist-status').textContent = 'ไม่มีข้อมูลใน Daily Sheet'; return; }
+
+  renderHistCharts(rows);
+  renderHistTableDaily(rows.slice(-30).reverse());
+  renderHistStats(rows);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  renderHistTableDaily — แสดงตาราง Daily Sheet
+// ─────────────────────────────────────────────────────────────
+function renderHistTableDaily(rows) {
+  const tb = document.getElementById('hist-table-body');
+  if (!tb) return;
+  tb.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.time}</td>
+      <td style="color:var(--air)">${r.dayAir !== null ? r.dayAir : '-'} / ${r.nightAir !== null ? r.nightAir : '-'}</td>
+      <td style="color:var(--humi)">${r.dayHumi !== null ? r.dayHumi : '-'} / ${r.nightHumi !== null ? r.nightHumi : '-'}</td>
+      <td style="color:var(--prod)">${r.dayProd !== null ? r.dayProd : '-'} / ${r.nightProd !== null ? r.nightProd : '-'}</td>
+      <td>${r.prog || '-'}</td>
+      <td style="color:${r.rain ? 'var(--rain)' : 'var(--muted)'}">${r.rain ? '🌧' : '-'}</td>
+    </tr>`).join('');
 }
 
 function parseAndRenderHistory(csv) {
